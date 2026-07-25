@@ -159,7 +159,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     background: #ffffff;
                     color: #113d34;
                   }
-                  .preview {
+                  .preview,
+                  video {
                     width: 100%;
                     max-height: 260px;
                     object-fit: contain;
@@ -247,7 +248,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     <section>
                       <h2>Prescription Input</h2>
                       <p>Upload a clear printed image or paste typed prescription text.</p>
-                      <input id="prescription-file" name="file" type="file" accept="image/*" />
+                      <input id="prescription-file" name="file" type="file" accept="image/*" capture="environment" />
                       <label>
                         Output Language
                         <select id="language">
@@ -258,10 +259,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                         </select>
                       </label>
                       <div class="actions">
+                        <button type="button" class="secondary" id="start-camera">Open Camera</button>
+                        <button type="button" class="secondary" id="capture-photo">Take Photo</button>
                         <button type="button" id="read-image">Read Image OCR</button>
                         <button type="button" class="secondary" id="sample">Use Sample</button>
                       </div>
                       <p class="status" id="status">Ready.</p>
+                      <video id="camera" autoplay playsinline muted hidden></video>
                       <img id="preview" class="preview" alt="Prescription preview" />
                     </section>
                     <section>
@@ -300,18 +304,23 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 <script>
                   const fileInput = document.querySelector("#prescription-file");
                   const readImage = document.querySelector("#read-image");
+                  const startCamera = document.querySelector("#start-camera");
+                  const capturePhoto = document.querySelector("#capture-photo");
                   const sample = document.querySelector("#sample");
                   const analyze = document.querySelector("#analyze");
                   const clear = document.querySelector("#clear");
                   const textArea = document.querySelector("#ocr-text");
                   const languageSelect = document.querySelector("#language");
                   const preview = document.querySelector("#preview");
+                  const camera = document.querySelector("#camera");
                   const statusLine = document.querySelector("#status");
                   const summary = document.querySelector("#summary");
                   const medicines = document.querySelector("#medicines");
                   const safety = document.querySelector("#safety");
                   const questions = document.querySelector("#questions");
                   const raw = document.querySelector("#raw");
+                  let cameraStream = null;
+                  let selectedImageBlob = null;
 
                   const sampleText = `Diagnosis: fever with throat infection
 Tab Paracetamol 500mg OD x 3 days
@@ -322,20 +331,57 @@ Syrup Pantoprazole 40mg AC x 5 days`;
                   fileInput.addEventListener("change", () => {
                     const file = fileInput.files[0];
                     if (!file) return;
+                    selectedImageBlob = file;
                     preview.src = URL.createObjectURL(file);
                     preview.style.display = "block";
                     statusLine.textContent = "Image selected. Run OCR when ready.";
                   });
 
+                  startCamera.addEventListener("click", async () => {
+                    if (!navigator.mediaDevices?.getUserMedia) {
+                      statusLine.textContent = "Camera is not available in this browser. Use file upload instead.";
+                      return;
+                    }
+                    try {
+                      stopCamera();
+                      cameraStream = await navigator.mediaDevices.getUserMedia({
+                        video: { facingMode: { ideal: "environment" } },
+                        audio: false,
+                      });
+                      camera.srcObject = cameraStream;
+                      camera.hidden = false;
+                      statusLine.textContent = "Camera opened. Place the prescription clearly, then take a photo.";
+                    } catch (error) {
+                      statusLine.textContent = "Camera permission was blocked or unavailable. Use file upload instead.";
+                    }
+                  });
+
+                  capturePhoto.addEventListener("click", async () => {
+                    if (!cameraStream || camera.hidden) {
+                      statusLine.textContent = "Open the camera first.";
+                      return;
+                    }
+                    const canvas = document.createElement("canvas");
+                    canvas.width = camera.videoWidth || 1280;
+                    canvas.height = camera.videoHeight || 720;
+                    const context = canvas.getContext("2d");
+                    context.drawImage(camera, 0, 0, canvas.width, canvas.height);
+                    selectedImageBlob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+                    preview.src = URL.createObjectURL(selectedImageBlob);
+                    preview.style.display = "block";
+                    stopCamera();
+                    statusLine.textContent = "Photo captured. Run OCR when ready.";
+                  });
+
                   readImage.addEventListener("click", async () => {
-                    const file = fileInput.files[0];
-                    if (!file) {
-                      statusLine.textContent = "Please choose a prescription image first.";
+                    const imageSource = selectedImageBlob || fileInput.files[0];
+                    if (!imageSource) {
+                      statusLine.textContent = "Please choose an image or take a photo first.";
                       return;
                     }
                     statusLine.textContent = "Preparing image for OCR...";
                     try {
-                      const preparedImage = await prepareImageForOcr(file);
+                      const preparedImage = await prepareImageForOcr(imageSource);
                       statusLine.textContent = "Reading image OCR. This may take a little while.";
                       const output = await Tesseract.recognize(preparedImage, "eng", {
                         logger: (event) => {
@@ -367,6 +413,9 @@ Syrup Pantoprazole 40mg AC x 5 days`;
                     textArea.value = "";
                     preview.removeAttribute("src");
                     preview.style.display = "none";
+                    fileInput.value = "";
+                    selectedImageBlob = null;
+                    stopCamera();
                     statusLine.textContent = "Ready.";
                     summary.textContent = "Run an analysis to see the patient summary.";
                     medicines.innerHTML = "";
@@ -487,6 +536,15 @@ Syrup Pantoprazole 40mg AC x 5 days`;
                       image.onerror = reject;
                       image.src = URL.createObjectURL(file);
                     });
+                  }
+
+                  function stopCamera() {
+                    if (cameraStream) {
+                      cameraStream.getTracks().forEach((track) => track.stop());
+                    }
+                    cameraStream = null;
+                    camera.srcObject = null;
+                    camera.hidden = true;
                   }
                 </script>
               </body>
