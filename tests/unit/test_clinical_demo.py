@@ -76,6 +76,16 @@ class TestClinicalDemo(unittest.TestCase):
         self.assertIn("Hemoglobin: 11.2 g/dL is low", result["answer"])
         self.assertIn("WBC: 12.5 10^3/uL is high", result["answer"])
 
+    def test_chatbot_rejects_sugary_food_when_sugar_is_high(self) -> None:
+        result = answer_document_question(
+            "Fasting Glucose 142 mg/dL",
+            "can I have some mangoes for lunch",
+            "lab_report",
+        )
+        self.assertIn("Negative", result["answer"])
+        self.assertIn("sugar value is high", result["answer"])
+        self.assertIn("Glucose 142 mg/dL", result["answer"])
+
 
 if __name__ == "__main__":
     unittest.main()

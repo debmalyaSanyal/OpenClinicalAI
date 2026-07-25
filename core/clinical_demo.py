@@ -274,6 +274,8 @@ def answer_lab_report_question(text: str, question: str, language: str = "en") -
     abnormal = [test for test in tests if test["status"] in {"low", "high"}]
     if not text.strip():
         answer = "Please analyze or paste a blood report first."
+    elif is_diet_question(lowered):
+        answer = build_lab_diet_answer(lowered, tests)
     elif any(word in lowered for word in ("high", "low", "abnormal", "problem", "bad", "danger", "risk")):
         answer = build_lab_abnormal_answer(abnormal)
     elif any(word in lowered for word in ("value", "level", "result", "how much", "reading")):
@@ -427,6 +429,40 @@ def build_lab_meaning_answer(tests: list[dict]) -> str:
     if not tests:
         return "No known lab test was detected to explain."
     return " ".join(f"{test['name']}: {test['explanation']}" for test in tests)
+
+
+def is_diet_question(question: str) -> bool:
+    return any(
+        word in question
+        for word in (
+            "eat",
+            "have",
+            "drink",
+            "mango",
+            "sweet",
+            "sugar",
+            "juice",
+            "rice",
+            "lunch",
+            "dinner",
+            "breakfast",
+            "fruit",
+        )
+    )
+
+
+def build_lab_diet_answer(question: str, tests: list[dict]) -> str:
+    high_sugar = [
+        test for test in tests if test["name"] in {"Glucose", "HBA1C"} and test["status"] == "high"
+    ]
+    sugary_food = any(word in question for word in ("mango", "sweet", "sugar", "juice"))
+    if high_sugar and sugary_food:
+        values = ", ".join(f"{test['name']} {test['value']:g} {test['unit']}" for test in high_sugar)
+        return f"Negative. Your sugar value is high ({values}), so avoid mangoes/sugary foods for now and confirm diet advice with your clinician."
+    if high_sugar:
+        values = ", ".join(f"{test['name']} {test['value']:g} {test['unit']}" for test in high_sugar)
+        return f"Be careful. Your sugar value is high ({values}). Prefer low-sugar, high-fiber meals and confirm with your clinician."
+    return "No high sugar marker was detected in the report by the demo rules. Keep portions sensible and follow your clinician's diet advice."
 
 
 def lookup_medicine(name: str) -> dict:
