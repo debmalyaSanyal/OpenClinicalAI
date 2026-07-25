@@ -37,11 +37,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                   body {
                     margin: 0;
                     min-height: 100vh;
-                    display: grid;
-                    place-items: center;
                   }
                   main {
                     width: min(920px, calc(100vw - 40px));
+                    margin: 0 auto;
                     padding: 56px 0;
                   }
                   h1 {
@@ -61,6 +60,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     display: flex;
                     flex-wrap: wrap;
                     gap: 12px;
+                    margin-bottom: 34px;
                   }
                   a {
                     display: inline-flex;
@@ -79,21 +79,99 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     color: #ffffff;
                     background: #145c4f;
                   }
+                  section {
+                    border-top: 1px solid #d8e0dd;
+                    padding-top: 30px;
+                  }
+                  h2 {
+                    margin: 0 0 10px;
+                    font-size: 1.3rem;
+                    letter-spacing: 0;
+                  }
+                  form {
+                    display: grid;
+                    gap: 14px;
+                    max-width: 680px;
+                  }
+                  input[type="file"] {
+                    width: 100%;
+                    padding: 14px;
+                    border: 1px solid #b8c7c1;
+                    border-radius: 8px;
+                    background: #ffffff;
+                  }
+                  button {
+                    width: fit-content;
+                    min-height: 44px;
+                    padding: 0 18px;
+                    border: 0;
+                    border-radius: 8px;
+                    background: #145c4f;
+                    color: #ffffff;
+                    font: inherit;
+                    font-weight: 700;
+                    cursor: pointer;
+                  }
+                  pre {
+                    max-width: 100%;
+                    overflow: auto;
+                    margin-top: 18px;
+                    padding: 16px;
+                    border-radius: 8px;
+                    background: #17211f;
+                    color: #f6f8f7;
+                    line-height: 1.5;
+                    white-space: pre-wrap;
+                  }
                 </style>
               </head>
               <body>
                 <main>
                   <h1>OpenClinicalAI</h1>
                   <p>
-                    The API is live. Use the documentation page to try available endpoints,
-                    including the health check and prescription pipeline placeholder.
+                    The API is live. You can upload a prescription below to confirm the hosted
+                    app is receiving files, then connect a hosted OCR model for real extraction.
                   </p>
                   <nav aria-label="OpenClinicalAI links">
                     <a class="primary" href="/docs">Open API Docs</a>
                     <a href="/v1/health">Check Health</a>
                     <a href="/redoc">Open ReDoc</a>
                   </nav>
+                  <section>
+                    <h2>Try Prescription Upload</h2>
+                    <p>Select a prescription image or PDF. The current hosted demo verifies upload handling.</p>
+                    <form id="upload-form">
+                      <input id="prescription-file" name="file" type="file" accept="image/*,.pdf" required />
+                      <button type="submit">Upload Prescription</button>
+                    </form>
+                    <pre id="result" hidden></pre>
+                  </section>
                 </main>
+                <script>
+                  const form = document.querySelector("#upload-form");
+                  const fileInput = document.querySelector("#prescription-file");
+                  const result = document.querySelector("#result");
+
+                  form.addEventListener("submit", async (event) => {
+                    event.preventDefault();
+                    result.hidden = false;
+                    result.textContent = "Uploading...";
+
+                    const body = new FormData();
+                    body.append("file", fileInput.files[0]);
+
+                    try {
+                      const response = await fetch("/v1/prescription/upload", {
+                        method: "POST",
+                        body,
+                      });
+                      const data = await response.json();
+                      result.textContent = JSON.stringify(data, null, 2);
+                    } catch (error) {
+                      result.textContent = "Upload failed. Please try again.";
+                    }
+                  });
+                </script>
               </body>
             </html>
             """
