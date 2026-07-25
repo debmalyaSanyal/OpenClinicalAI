@@ -88,6 +88,19 @@ LAB_TESTS = {
     "alt": {"aliases": ["alt", "sgpt"], "unit": "U/L", "low": 0.0, "high": 45.0},
     "ast": {"aliases": ["ast", "sgot"], "unit": "U/L", "low": 0.0, "high": 40.0},
 }
+REFERENCE_PROFILES = {
+    "generic": {
+        "name": "Generic adult demo ranges",
+        "overrides": {},
+    },
+    "india": {
+        "name": "India-oriented adult demo ranges",
+        "overrides": {
+            "ldl": {"high": 130.0},
+            "hdl": {"low": 40.0},
+        },
+    },
+}
 
 
 LANGUAGE_NAMES = {
@@ -245,15 +258,17 @@ def analyze_prescription_text(text: str, language: str = "en") -> dict:
     return localize_result(result, language)
 
 
-def analyze_lab_report_text(text: str, language: str = "en") -> dict:
+def analyze_lab_report_text(text: str, language: str = "en", reference_profile: str = "generic") -> dict:
     language = normalize_language(language)
-    tests = extract_lab_tests(text)
+    reference_profile = normalize_reference_profile(reference_profile)
+    tests = extract_lab_tests(text, reference_profile)
     abnormal = [test for test in tests if test["status"] in {"low", "high"}]
     summary = build_lab_summary(tests, abnormal)
     return {
         "status": "complete",
         "document_type": "lab_report",
         "language": language,
+        "reference_profile": REFERENCE_PROFILES[reference_profile]["name"],
         "ocr_text": text.strip(),
         "lab_tests": tests,
         "patient_summary": summary,
@@ -267,15 +282,20 @@ def analyze_lab_report_text(text: str, language: str = "en") -> dict:
     }
 
 
-def answer_lab_report_question(text: str, question: str, language: str = "en") -> dict:
-    analysis = analyze_lab_report_text(text, language)
+def answer_lab_report_question(
+    text: str,
+    question: str,
+    language: str = "en",
+    reference_profile: str = "generic",
+) -> dict:
+    analysis = analyze_lab_report_text(text, language, reference_profile)
     lowered = question.lower()
     tests = analysis["lab_tests"]
     abnormal = [test for test in tests if test["status"] in {"low", "high"}]
     if not text.strip():
         answer = "Please analyze or paste a blood report first."
     elif is_diet_question(lowered):
-        answer = build_lab_diet_answer(lowered, tests)
+        answer = build_lab_diet_answer(lowered, tests, abnormal, analysis["reference_profile"])
     elif any(word in lowered for word in ("high", "low", "abnormal", "problem", "bad", "danger", "risk")):
         answer = build_lab_abnormal_answer(abnormal)
     elif any(word in lowered for word in ("value", "level", "result", "how much", "reading")):
@@ -293,9 +313,15 @@ def answer_lab_report_question(text: str, question: str, language: str = "en") -
     }
 
 
-def answer_document_question(text: str, question: str, document_type: str = "prescription", language: str = "en") -> dict:
+def answer_document_question(
+    text: str,
+    question: str,
+    document_type: str = "prescription",
+    language: str = "en",
+    reference_profile: str = "generic",
+) -> dict:
     if document_type == "lab_report":
-        return answer_lab_report_question(text, question, language)
+        return answer_lab_report_question(text, question, language, reference_profile)
     return answer_prescription_question(text, question, language)
 
 
@@ -329,11 +355,12 @@ def answer_prescription_question(text: str, question: str, language: str = "en")
     }
 
 
-def extract_lab_tests(text: str) -> list[dict]:
+def extract_lab_tests(text: str, reference_profile: str = "generic") -> list[dict]:
     normalized = text.replace("|", " ")
     found: list[dict] = []
     seen: set[str] = set()
     for name, config in LAB_TESTS.items():
+        config = apply_reference_profile(name, config, reference_profile)
         for alias in config["aliases"]:
             pattern = rf"\b{re.escape(alias)}\b\s*[:\-]?\s*(\d+(?:\.\d+)?)"
             match = re.search(pattern, normalized, re.I)
@@ -364,6 +391,16 @@ def build_lab_result(name: str, value: float, config: dict) -> dict:
         "status": status,
         "explanation": lab_explanation(name, status),
     }
+
+
+def normalize_reference_profile(reference_profile: str) -> str:
+    return reference_profile if reference_profile in REFERENCE_PROFILES else "generic"
+
+
+def apply_reference_profile(name: str, config: dict, reference_profile: str) -> dict:
+    adjusted = dict(config)
+    adjusted.update(REFERENCE_PROFILES[reference_profile]["overrides"].get(name, {}))
+    return adjusted
 
 
 def lab_explanation(name: str, status: str) -> str:
@@ -451,17 +488,24 @@ def is_diet_question(question: str) -> bool:
     )
 
 
-def build_lab_diet_answer(question: str, tests: list[dict]) -> str:
+def build_lab_diet_answer(question: str, tests: list[dict], abnormal: list[dict], profile_name: str) -> str:
     high_sugar = [
         test for test in tests if test["name"] in {"Glucose", "HBA1C"} and test["status"] == "high"
     ]
     sugary_food = any(word in question for word in ("mango", "sweet", "sugar", "juice"))
+    abnormal_text = build_lab_abnormal_answer(abnormal) if abnormal else "No abnormal values detected."
     if high_sugar and sugary_food:
         values = ", ".join(f"{test['name']} {test['value']:g} {test['unit']}" for test in high_sugar)
-        return f"Negative. Your sugar value is high ({values}), so avoid mangoes/sugary foods for now and confirm diet advice with your clinician."
+        return (
+            f"Negative. Your sugar value is high ({values}) as per {profile_name}, "
+            f"so avoid mangoes/sugary foods for now. Other abnormal values: {abnormal_text}"
+        )
     if high_sugar:
         values = ", ".join(f"{test['name']} {test['value']:g} {test['unit']}" for test in high_sugar)
-        return f"Be careful. Your sugar value is high ({values}). Prefer low-sugar, high-fiber meals and confirm with your clinician."
+        return (
+            f"Be careful. Your sugar value is high ({values}) as per {profile_name}. "
+            f"Prefer low-sugar, high-fiber meals. Other abnormal values: {abnormal_text}"
+        )
     return "No high sugar marker was detected in the report by the demo rules. Keep portions sensible and follow your clinician's diet advice."
 
 

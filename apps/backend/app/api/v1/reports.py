@@ -9,4 +9,8 @@ router = APIRouter()
 
 @router.post("")
 def analyze_report(payload: dict) -> dict:
-    return analyze_lab_report_text(str(payload.get("text", "")), str(payload.get("language", "en")))
+    return analyze_lab_report_text(
+        str(payload.get("text", "")),
+        str(payload.get("language", "en")),
+        str(payload.get("reference_profile", "generic")),
+    )

@@ -78,13 +78,19 @@ class TestClinicalDemo(unittest.TestCase):
 
     def test_chatbot_rejects_sugary_food_when_sugar_is_high(self) -> None:
         result = answer_document_question(
-            "Fasting Glucose 142 mg/dL",
+            "Fasting Glucose 142 mg/dL\nHemoglobin 11.2 g/dL",
             "can I have some mangoes for lunch",
             "lab_report",
         )
         self.assertIn("Negative", result["answer"])
         self.assertIn("sugar value is high", result["answer"])
         self.assertIn("Glucose 142 mg/dL", result["answer"])
+        self.assertIn("Hemoglobin: 11.2 g/dL is low", result["answer"])
+
+    def test_indian_reference_profile_is_returned(self) -> None:
+        result = analyze_lab_report_text("LDL 120 mg/dL", reference_profile="india")
+        self.assertEqual(result["reference_profile"], "India-oriented adult demo ranges")
+        self.assertEqual(result["lab_tests"][0]["status"], "normal")
 
 
 if __name__ == "__main__":

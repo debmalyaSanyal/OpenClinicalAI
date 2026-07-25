@@ -276,6 +276,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                         </select>
                       </label>
                       <label>
+                        Report Reference Profile
+                        <select id="reference-profile">
+                          <option value="generic">Generic adult</option>
+                          <option value="india">Indian adult</option>
+                        </select>
+                      </label>
+                      <label>
                         Output Language
                         <select id="language">
                           <option value="en">English</option>
@@ -348,6 +355,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                   const clear = document.querySelector("#clear");
                   const textArea = document.querySelector("#ocr-text");
                   const documentType = document.querySelector("#document-type");
+                  const referenceProfile = document.querySelector("#reference-profile");
                   const languageSelect = document.querySelector("#language");
                   const preview = document.querySelector("#preview");
                   const camera = document.querySelector("#camera");
@@ -493,7 +501,11 @@ Creatinine 1.0 mg/dL`;
                       const response = await fetch(endpoint, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ text, language: languageSelect.value }),
+                        body: JSON.stringify({
+                          text,
+                          language: languageSelect.value,
+                          reference_profile: referenceProfile.value,
+                        }),
                       });
                       const data = await response.json();
                       renderResult(data);
@@ -553,6 +565,10 @@ Creatinine 1.0 mg/dL`;
 
                   function renderLabReport(data, labels) {
                     detailsHeading.textContent = "Lab Values";
+                    summary.innerHTML = `
+                      <p>${escapeHtml(data.patient_summary || "No summary available.")}</p>
+                      <span class="badge">${escapeHtml(data.reference_profile || "Generic adult demo ranges")}</span>
+                    `;
                     medicines.innerHTML = "";
                     const tests = data.lab_tests || [];
                     if (!tests.length) {
@@ -605,6 +621,7 @@ Creatinine 1.0 mg/dL`;
                           question,
                           document_type: documentType.value,
                           language: languageSelect.value,
+                          reference_profile: referenceProfile.value,
                         }),
                       });
                       const data = await response.json();

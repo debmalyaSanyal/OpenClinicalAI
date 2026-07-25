@@ -22,4 +22,5 @@ def chat(payload: dict) -> dict:
         str(payload.get("question", "")),
         str(payload.get("document_type", "prescription")),
         str(payload.get("language", "en")),
+        str(payload.get("reference_profile", "generic")),
     )
