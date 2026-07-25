@@ -105,6 +105,25 @@ class TestClinicalDemo(unittest.TestCase):
         self.assertEqual([value["name"] for value in result["clinical_values"]], ["Hemoglobin", "HBA1C"])
         self.assertIn("HBA1C 8.083 %", result["patient_summary"])
 
+    def test_table_medicines_get_sourced_explanations(self) -> None:
+        result = analyze_prescription_text(
+            """
+            1 Stamlo 5 od htn
+            2 Tazloc 40 od htn
+            3 Atrovas 10mg od chol
+            7 Pregabid CR 82.5 od pain
+            8 Lumia 60K once monthly vitd3
+            """
+        )
+        uses = {item["name"]: item["use"] for item in result["medicine_knowledge"]}
+        sources = {item["name"]: item.get("source_url") for item in result["medicine_knowledge"]}
+        self.assertIn("high blood pressure", uses["Stamlo"])
+        self.assertIn("high blood pressure", uses["Tazloc"])
+        self.assertIn("cholesterol", uses["Atrovas"])
+        self.assertIn("pain", uses["Pregabid CR"])
+        self.assertIn("vitamin D3", uses["Lumia"])
+        self.assertTrue(sources["Stamlo"].startswith("https://"))
+
 
 if __name__ == "__main__":
     unittest.main()

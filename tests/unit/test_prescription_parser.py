@@ -72,6 +72,9 @@ class TestPrescriptionParser(unittest.TestCase):
         self.assertIn("Primolut-N", names)
         self.assertEqual(result["medicines"][0]["dose"], "5")
         self.assertEqual(result["medicines"][0]["frequency"], "once daily")
+        self.assertEqual(result["medicines"][0]["purpose"], "htn")
+        self.assertEqual(result["medicines"][2]["purpose"], "chol")
+        self.assertEqual(result["medicines"][-1]["purpose"], "menstruation")
         self.assertGreaterEqual(len(result["medicines"]), 8)
 
     def test_ignores_noise_and_keeps_monthly_strength(self) -> None:

@@ -123,6 +123,7 @@ class ParsedMedicine:
     frequency_abbreviation: str | None
     frequency_explanation: str | None
     duration: str | None
+    purpose: str | None
     instruction: str
 
 
@@ -176,6 +177,7 @@ def parse_medicine_line(line: str) -> ParsedMedicine | None:
         frequency_abbreviation=frequency["abbreviation"] if frequency else None,
         frequency_explanation=frequency["explanation"] if frequency else None,
         duration=normalize_duration(duration_match.group(1)) if duration_match else None,
+        purpose=extract_purpose(normalized),
         instruction=line,
     )
 
@@ -222,6 +224,7 @@ def parse_table_medicine_line(line: str) -> ParsedMedicine | None:
     if not name:
         return None
     frequency = extract_frequency(frequency_match.group(1))
+    purpose = cleaned[frequency_match.end() :].strip(" :-")
     return ParsedMedicine(
         name=name,
         dose=dose,
@@ -229,6 +232,7 @@ def parse_table_medicine_line(line: str) -> ParsedMedicine | None:
         frequency_abbreviation=frequency["abbreviation"] if frequency else None,
         frequency_explanation=frequency["explanation"] if frequency else None,
         duration=None,
+        purpose=purpose or None,
         instruction=line,
     )
 
@@ -303,6 +307,13 @@ def is_continuation_line(line: str) -> bool:
 
 def normalize_duration(duration: str) -> str:
     return re.sub(r"\bday$", "days", duration.replace("(s)", "s"), flags=re.I)
+
+
+def extract_purpose(line: str) -> str | None:
+    for purpose in ("htn", "chol", "ra", "pain", "menstruation", "vitd3", "vit d3", "diabetes", "dm"):
+        if re.search(rf"\b{re.escape(purpose)}\b", line, re.I):
+            return purpose
+    return None
 
 
 def extract_symptoms(text: str) -> list[str]:

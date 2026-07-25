@@ -59,6 +59,78 @@ MEDICINE_KNOWLEDGE = {
         "use": "Blood pressure medicine.",
         "caution": "May cause ankle swelling or dizziness in some people.",
     },
+    "stamlo": {
+        "use": "Brand commonly containing amlodipine, used for high blood pressure and some angina/heart blood-flow conditions.",
+        "caution": "Verify the generic name and strength. Amlodipine can cause dizziness, flushing, or ankle swelling in some people.",
+        "source": "DailyMed amlodipine labeling",
+        "source_url": "https://dailymed.nlm.nih.gov/dailymed/lookup.cfm?setid=886a7f97-60a4-4206-a6c7-5206069ed487",
+    },
+    "tazloc": {
+        "use": "Brand commonly containing telmisartan, used for high blood pressure and cardiovascular risk reduction in selected patients.",
+        "caution": "Verify the generic name and strength. Telmisartan needs extra review in pregnancy, kidney disease, high potassium, or dehydration.",
+        "source": "DailyMed telmisartan labeling",
+        "source_url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=beaaf383-730f-4411-b5e7-15c32b53a338",
+    },
+    "atrovas": {
+        "use": "Brand commonly containing atorvastatin, used to lower cholesterol and reduce heart attack or stroke risk in selected patients.",
+        "caution": "Verify the generic name and strength. Report severe muscle pain, weakness, dark urine, or liver-related symptoms to a clinician.",
+        "source": "MedlinePlus atorvastatin",
+        "source_url": "https://medlineplus.gov/druginfo/meds/a600045.html",
+    },
+    "pregabid": {
+        "use": "Brand commonly containing pregabalin, used for selected nerve-pain conditions and sometimes seizure-related indications.",
+        "caution": "Verify the generic name and strength. Pregabalin can cause sleepiness or dizziness and should not be stopped suddenly without advice.",
+        "source": "MedlinePlus pregabalin",
+        "source_url": "https://medlineplus.gov/druginfo/meds/a605045.html",
+    },
+    "lumia": {
+        "use": "Likely a vitamin D3/cholecalciferol preparation when written as 60K; used to treat or prevent vitamin D deficiency.",
+        "caution": "Verify the exact product. High-dose vitamin D should be taken only as prescribed, especially with kidney disease or high calcium.",
+        "source": "MedlinePlus vitamin D deficiency",
+        "source_url": "https://medlineplus.gov/vitaminddeficiency.html",
+    },
+    "primolut-n": {
+        "use": "Brand containing norethisterone, used for selected menstrual or hormone-related problems such as irregular/heavy periods when prescribed.",
+        "caution": "Verify it is appropriate before use, especially with pregnancy possibility, clot risk, liver disease, or unexplained bleeding.",
+        "source": "Australian Commission Primolut-N medicine finder",
+        "source_url": "https://www.safetyandquality.gov.au/medicine-finder/primolut-n",
+    },
+    "lupoxa": {
+        "use": "Brand commonly listed as oxaceprol, used for osteoarthritis or rheumatoid-arthritis-related pain and swelling.",
+        "caution": "Verify the generic name. Review stomach upset, dizziness, ulcer history, and other pain medicines with a clinician.",
+        "source": "Apollo Pharmacy Lupoxa OD",
+        "source_url": "https://www.apollopharmacy.in/medicine/lupoxa-od-tablet-10-s",
+    },
+    "lupoxa od": {
+        "use": "Brand commonly listed as oxaceprol, used for osteoarthritis or rheumatoid-arthritis-related pain and swelling.",
+        "caution": "Verify the generic name. Review stomach upset, dizziness, ulcer history, and other pain medicines with a clinician.",
+        "source": "Apollo Pharmacy Lupoxa OD",
+        "source_url": "https://www.apollopharmacy.in/medicine/lupoxa-od-tablet-10-s",
+    },
+    "collashot c2": {
+        "use": "Joint-health supplement containing collagen-related ingredients; commonly marketed for joint pain, stiffness, or cartilage support.",
+        "caution": "Treat as a supplement, not a replacement for RA treatment. Verify ingredients if there is allergy, kidney disease, pregnancy, or other medicines.",
+        "source": "1mg Collashot C2",
+        "source_url": "https://www.1mg.com/otc/collashot-c2-capsule-otc441037",
+    },
+    "macvestin": {
+        "use": "Joint-support/anti-inflammatory supplement product used for osteoarthritis or rheumatoid-arthritis symptom support in some prescriptions.",
+        "caution": "Verify the exact formulation and avoid assuming it replaces prescribed RA medicines. Review interactions and stomach issues with a clinician.",
+        "source": "MIMS India Macvestin Total",
+        "source_url": "https://www.mims.com/india/drug/info/macvestin%20total",
+    },
+}
+
+PURPOSE_EXPLANATIONS = {
+    "htn": "The scanned PURPOSE column says HTN, which usually means hypertension/high blood pressure.",
+    "chol": "The scanned PURPOSE column says chol, which usually means cholesterol/lipid control.",
+    "ra": "The scanned PURPOSE column says RA, which usually means rheumatoid arthritis.",
+    "pain": "The scanned PURPOSE column says pain, so the medicine may have been prescribed for pain control.",
+    "menstruation": "The scanned PURPOSE column says menstruation, so the medicine may relate to menstrual bleeding or cycle control.",
+    "vitd3": "The scanned PURPOSE column says vitd3, which points to vitamin D3 supplementation.",
+    "vit d3": "The scanned PURPOSE column says vit d3, which points to vitamin D3 supplementation.",
+    "diabetes": "The scanned PURPOSE column says diabetes, so the medicine may relate to blood sugar care.",
+    "dm": "The scanned PURPOSE column says DM, which often means diabetes mellitus.",
 }
 
 
@@ -242,7 +314,7 @@ def analyze_prescription_text(text: str, language: str = "en") -> dict:
     language = normalize_language(language)
     parsed = parse_prescription_text(text)
     medicines = parsed["medicines"]
-    knowledge = [lookup_medicine(medicine["name"]) for medicine in medicines]
+    knowledge = [lookup_medicine(medicine["name"], medicine.get("purpose")) for medicine in medicines]
     safety = evaluate_safety(text, medicines)
     clinical_values = extract_lab_tests(text, "generic")
     patient_summary = build_patient_summary(parsed, knowledge, safety)
@@ -522,16 +594,33 @@ def build_lab_diet_answer(question: str, tests: list[dict], abnormal: list[dict]
     return "No high sugar marker was detected in the report by the demo rules. Keep portions sensible and follow your clinician's diet advice."
 
 
-def lookup_medicine(name: str) -> dict:
+def lookup_medicine(name: str, purpose: str | None = None) -> dict:
     key = name.lower()
-    info = MEDICINE_KNOWLEDGE.get(
-        key,
-        {
-            "use": "Medicine detected, but no built-in explanation is available in this demo.",
+    info = MEDICINE_KNOWLEDGE.get(key) or lookup_partial_medicine_key(key)
+    purpose_note = purpose_explanation(purpose)
+    if info:
+        info = dict(info)
+        if purpose_note and purpose_note not in info["use"]:
+            info["use"] = f"{info['use']} {purpose_note}"
+    else:
+        info = {
+            "use": purpose_note or "Medicine detected, but no built-in explanation is available in this demo.",
             "caution": "Verify the medicine name, dose, and instructions with a clinician or pharmacist.",
-        },
-    )
+        }
     return {"name": name, **info}
+
+
+def lookup_partial_medicine_key(key: str) -> dict | None:
+    for known_key, info in MEDICINE_KNOWLEDGE.items():
+        if known_key in key or key in known_key:
+            return info
+    return None
+
+
+def purpose_explanation(purpose: str | None) -> str:
+    if not purpose:
+        return ""
+    return PURPOSE_EXPLANATIONS.get(purpose.lower(), f"The scanned PURPOSE column says {purpose}.")
 
 
 def build_medicine_chat_answer(medicines: list[dict], knowledge: list[dict]) -> str:

@@ -707,9 +707,11 @@ Creatinine 1.0 mg/dL`;
                           <p><strong>${escapeHtml(labels.dose || "Dose")}:</strong> ${escapeHtml(medicine.dose || "Not detected")}</p>
                           <p><strong>${escapeHtml(labels.frequency || "Frequency")}:</strong> ${escapeHtml(medicine.frequency || "Not detected")}</p>
                           <p><strong>${escapeHtml(labels.duration || "Duration")}:</strong> ${escapeHtml(medicine.duration || "Not detected")}</p>
+                          <p><strong>Purpose found:</strong> ${escapeHtml(medicine.purpose || "Not detected")}</p>
                           <p><strong>${escapeHtml(labels.timing_explanation || "Timing meaning")}:</strong> ${escapeHtml(medicine.frequency_explanation || "Not detected")}</p>
                           <p><strong>${escapeHtml(labels.use || "Use")}:</strong> ${escapeHtml(info.use || "No explanation available.")}</p>
                           <p><strong>${escapeHtml(labels.caution || "Caution")}:</strong> ${escapeHtml(info.caution || "Verify with a clinician.")}</p>
+                          ${info.source_url ? `<p><strong>Source:</strong> <a href="${escapeHtml(info.source_url)}" target="_blank" rel="noopener">${escapeHtml(info.source || "Reference")}</a></p>` : ""}
                         `;
                         medicines.appendChild(item);
                       });
