@@ -31,6 +31,22 @@ class TestClinicalDemo(unittest.TestCase):
         self.assertIn("twice daily", result["answer"])
         self.assertIn("BD means", result["answer"])
 
+    def test_chatbot_answers_food_timing_directly(self) -> None:
+        result = answer_prescription_question(
+            "Rx: Dexamethasone - 4 mg PO daily for 3 day(s)",
+            "can i have the medicine after breakfast",
+        )
+        self.assertEqual(result["answer"], "Dexamethasone: the prescription does not say before or after food.")
+        self.assertEqual(result["safety_note"], "")
+
+    def test_chatbot_answers_dose_directly(self) -> None:
+        result = answer_prescription_question(
+            "Rx: Dexamethasone - 4 mg PO daily for 3 day(s)",
+            "how much should I have",
+        )
+        self.assertEqual(result["answer"], "Dexamethasone: 4 mg for 3 days.")
+        self.assertEqual(result["safety_note"], "")
+
 
 if __name__ == "__main__":
     unittest.main()

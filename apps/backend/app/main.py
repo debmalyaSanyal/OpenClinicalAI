@@ -555,7 +555,8 @@ Syrup Pantoprazole 40mg AC x 5 days`;
                         }),
                       });
                       const data = await response.json();
-                      appendChatMessage("assistant", `${data.answer}\n\nSafety note: ${data.safety_note}`);
+                      const answer = data.safety_note ? `${data.answer}\n\nSafety note: ${data.safety_note}` : data.answer;
+                      appendChatMessage("assistant", answer);
                       statusLine.textContent = "Chatbot answer ready.";
                     } catch (error) {
                       appendChatMessage("assistant", "I could not answer that right now. Please try again.");

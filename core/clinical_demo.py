@@ -231,16 +231,20 @@ def answer_prescription_question(text: str, question: str, language: str = "en")
     lowered = question.lower()
     medicines = analysis["parsed_prescription"]["medicines"]
     knowledge = analysis["medicine_knowledge"]
+    include_safety_note = False
     if not text.strip():
         answer = "Please analyze or paste a prescription first, then ask a question about it."
+    elif is_food_timing_question(lowered):
+        answer = build_food_timing_chat_answer(medicines)
+    elif is_dose_question(lowered):
+        answer = build_dose_chat_answer(medicines)
     elif any(word in lowered for word in ("emergency", "urgent", "danger", "safe", "warning", "risk")):
         answer = build_safety_chat_answer(analysis)
+        include_safety_note = True
     elif any(word in lowered for word in ("when", "time", "timing", "od", "bd", "tds", "hs", "sos", "prn", "ac", "pc")):
         answer = build_timing_chat_answer(medicines)
     elif any(word in lowered for word in ("use", "for", "why", "purpose", "medicine")):
         answer = build_medicine_chat_answer(medicines, knowledge)
-    elif any(word in lowered for word in ("dose", "dosage", "strength", "mg", "ml")):
-        answer = build_dose_chat_answer(medicines)
     else:
         answer = build_general_chat_answer(analysis)
     return {
@@ -248,7 +252,7 @@ def answer_prescription_question(text: str, question: str, language: str = "en")
         "language": analysis["language"],
         "question": question,
         "answer": localize_chat_answer(answer, analysis["language"]),
-        "safety_note": analysis["safety_review"]["safe_use_note"],
+        "safety_note": analysis["safety_review"]["safe_use_note"] if include_safety_note else "",
     }
 
 
@@ -269,7 +273,7 @@ def build_medicine_chat_answer(medicines: list[dict], knowledge: list[dict]) -> 
         return "I could not confidently detect medicines from the prescription text."
     parts = []
     for medicine, info in zip(medicines, knowledge):
-        parts.append(f"{medicine['name']}: {info['use']} Caution: {info['caution']}")
+        parts.append(f"{medicine['name']}: {info['use']}")
     return " ".join(parts)
 
 
@@ -287,7 +291,27 @@ def build_timing_chat_answer(medicines: list[dict]) -> str:
 def build_dose_chat_answer(medicines: list[dict]) -> str:
     if not medicines:
         return "No medicine doses were detected yet."
-    return " ".join(f"{medicine['name']}: {medicine.get('dose') or 'dose not detected'}." for medicine in medicines)
+    parts = []
+    for medicine in medicines:
+        duration = f" for {medicine['duration']}" if medicine.get("duration") else ""
+        parts.append(f"{medicine['name']}: {medicine.get('dose') or 'dose not detected'}{duration}.")
+    return " ".join(parts)
+
+
+def build_food_timing_chat_answer(medicines: list[dict]) -> str:
+    if not medicines:
+        return "No medicine food timing was detected yet."
+    parts = []
+    for medicine in medicines:
+        instruction = medicine.get("instruction", "").lower()
+        name = medicine["name"]
+        if " ac" in f" {instruction}" or "before food" in instruction:
+            parts.append(f"{name}: take before food.")
+        elif " pc" in f" {instruction}" or "after food" in instruction:
+            parts.append(f"{name}: take after food.")
+        else:
+            parts.append(f"{name}: the prescription does not say before or after food.")
+    return " ".join(parts)
 
 
 def build_safety_chat_answer(analysis: dict) -> str:
@@ -298,10 +322,19 @@ def build_safety_chat_answer(analysis: dict) -> str:
 
 
 def build_general_chat_answer(analysis: dict) -> str:
-    return (
-        f"{analysis['patient_summary']} You can ask about medicine use, dose, timing, "
-        "short forms such as OD/BD/TDS/HS, or safety warnings."
-    )
+    medicines = analysis["parsed_prescription"]["medicines"]
+    if medicines:
+        names = ", ".join(medicine["name"] for medicine in medicines)
+        return f"I detected: {names}. Ask me about dose, timing, food timing, use, or safety."
+    return "I could not detect a medicine clearly. Please edit the OCR text and try again."
+
+
+def is_food_timing_question(question: str) -> bool:
+    return any(word in question for word in ("food", "meal", "breakfast", "lunch", "dinner", "after eating", "before eating"))
+
+
+def is_dose_question(question: str) -> bool:
+    return any(word in question for word in ("dose", "dosage", "strength", "mg", "ml", "how much", "amount", "quantity"))
 
 
 def evaluate_safety(text: str, medicines: list[dict]) -> dict:
@@ -451,12 +484,6 @@ def localized_safe_use_note(language: str) -> str:
 
 
 def localize_chat_answer(answer: str, language: str) -> str:
-    if language == "hi":
-        return f"{answer}\n\nकृपया अंतिम निर्णय से पहले डॉक्टर या फार्मासिस्ट से पुष्टि करें।"
-    if language == "bn":
-        return f"{answer}\n\nচূড়ান্ত সিদ্ধান্তের আগে ডাক্তার বা ফার্মাসিস্টের সঙ্গে নিশ্চিত করুন।"
-    if language == "es":
-        return f"{answer}\n\nConfirme siempre con un profesional de salud o farmacéutico antes de tomar decisiones."
     return answer
 
 
