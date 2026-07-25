@@ -226,6 +226,32 @@ def analyze_prescription_text(text: str, language: str = "en") -> dict:
     return localize_result(result, language)
 
 
+def answer_prescription_question(text: str, question: str, language: str = "en") -> dict:
+    analysis = analyze_prescription_text(text, language)
+    lowered = question.lower()
+    medicines = analysis["parsed_prescription"]["medicines"]
+    knowledge = analysis["medicine_knowledge"]
+    if not text.strip():
+        answer = "Please analyze or paste a prescription first, then ask a question about it."
+    elif any(word in lowered for word in ("emergency", "urgent", "danger", "safe", "warning", "risk")):
+        answer = build_safety_chat_answer(analysis)
+    elif any(word in lowered for word in ("when", "time", "timing", "od", "bd", "tds", "hs", "sos", "prn", "ac", "pc")):
+        answer = build_timing_chat_answer(medicines)
+    elif any(word in lowered for word in ("use", "for", "why", "purpose", "medicine")):
+        answer = build_medicine_chat_answer(medicines, knowledge)
+    elif any(word in lowered for word in ("dose", "dosage", "strength", "mg", "ml")):
+        answer = build_dose_chat_answer(medicines)
+    else:
+        answer = build_general_chat_answer(analysis)
+    return {
+        "status": "complete",
+        "language": analysis["language"],
+        "question": question,
+        "answer": localize_chat_answer(answer, analysis["language"]),
+        "safety_note": analysis["safety_review"]["safe_use_note"],
+    }
+
+
 def lookup_medicine(name: str) -> dict:
     key = name.lower()
     info = MEDICINE_KNOWLEDGE.get(
@@ -236,6 +262,46 @@ def lookup_medicine(name: str) -> dict:
         },
     )
     return {"name": name, **info}
+
+
+def build_medicine_chat_answer(medicines: list[dict], knowledge: list[dict]) -> str:
+    if not medicines:
+        return "I could not confidently detect medicines from the prescription text."
+    parts = []
+    for medicine, info in zip(medicines, knowledge):
+        parts.append(f"{medicine['name']}: {info['use']} Caution: {info['caution']}")
+    return " ".join(parts)
+
+
+def build_timing_chat_answer(medicines: list[dict]) -> str:
+    if not medicines:
+        return "No medicine timings were detected yet."
+    parts = []
+    for medicine in medicines:
+        frequency = medicine.get("frequency") or "timing not detected"
+        explanation = medicine.get("frequency_explanation") or "No abbreviation explanation detected."
+        parts.append(f"{medicine['name']}: {frequency}. {explanation}")
+    return " ".join(parts)
+
+
+def build_dose_chat_answer(medicines: list[dict]) -> str:
+    if not medicines:
+        return "No medicine doses were detected yet."
+    return " ".join(f"{medicine['name']}: {medicine.get('dose') or 'dose not detected'}." for medicine in medicines)
+
+
+def build_safety_chat_answer(analysis: dict) -> str:
+    flags = analysis["safety_review"]["flags"]
+    if not flags:
+        return "No urgent demo safety flags were detected. Still verify the prescription with a clinician or pharmacist."
+    return " ".join(flag["message"] for flag in flags)
+
+
+def build_general_chat_answer(analysis: dict) -> str:
+    return (
+        f"{analysis['patient_summary']} You can ask about medicine use, dose, timing, "
+        "short forms such as OD/BD/TDS/HS, or safety warnings."
+    )
 
 
 def evaluate_safety(text: str, medicines: list[dict]) -> dict:
@@ -382,6 +448,16 @@ def localized_safe_use_note(language: str) -> str:
     if language == "es":
         return "No empiece, suspenda ni cambie medicamentos sin un profesional de salud calificado."
     return "Do not start, stop, or change medicines without a qualified medical professional."
+
+
+def localize_chat_answer(answer: str, language: str) -> str:
+    if language == "hi":
+        return f"{answer}\n\nकृपया अंतिम निर्णय से पहले डॉक्टर या फार्मासिस्ट से पुष्टि करें।"
+    if language == "bn":
+        return f"{answer}\n\nচূড়ান্ত সিদ্ধান্তের আগে ডাক্তার বা ফার্মাসিস্টের সঙ্গে নিশ্চিত করুন।"
+    if language == "es":
+        return f"{answer}\n\nConfirme siempre con un profesional de salud o farmacéutico antes de tomar decisiones."
+    return answer
 
 
 def localize_frequency_explanation(medicine: dict, language: str) -> str:

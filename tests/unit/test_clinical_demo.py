@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from core.clinical_demo import analyze_prescription_text
+from core.clinical_demo import analyze_prescription_text, answer_prescription_question
 
 
 class TestClinicalDemo(unittest.TestCase):
@@ -21,6 +21,15 @@ class TestClinicalDemo(unittest.TestCase):
         self.assertEqual(result["ui_labels"]["dose"], "खुराक")
         self.assertEqual(result["parsed_prescription"]["medicines"][0]["frequency"], "दिन में एक बार")
         self.assertIn("OD का अर्थ", result["parsed_prescription"]["medicines"][0]["frequency_explanation"])
+
+    def test_chatbot_answers_timing_questions(self) -> None:
+        result = answer_prescription_question(
+            "Tab Paracetamol 500mg BD x 3 days",
+            "What does BD mean?",
+        )
+        self.assertEqual(result["status"], "complete")
+        self.assertIn("twice daily", result["answer"])
+        self.assertIn("BD means", result["answer"])
 
 
 if __name__ == "__main__":

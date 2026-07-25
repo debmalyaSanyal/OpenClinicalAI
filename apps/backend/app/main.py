@@ -115,6 +115,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     align-content: start;
                   }
                   input[type="file"],
+                  input[type="text"],
                   select,
                   textarea {
                     width: 100%;
@@ -179,6 +180,24 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     border-radius: 8px;
                     padding: 16px;
                     background: #fbfcfb;
+                  }
+                  .chat-log {
+                    display: grid;
+                    gap: 10px;
+                    max-height: 320px;
+                    overflow: auto;
+                  }
+                  .message {
+                    padding: 12px;
+                    border-radius: 8px;
+                    line-height: 1.45;
+                  }
+                  .message.user {
+                    background: #e7f1ed;
+                  }
+                  .message.assistant {
+                    background: #fbfcfb;
+                    border: 1px solid #d8e0dd;
                   }
                   .grid {
                     display: grid;
@@ -295,6 +314,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                       <div id="questions" class="panel">No questions yet.</div>
                     </section>
                     <section>
+                      <h2>Prescription Chatbot</h2>
+                      <p>Ask about the parsed prescription, medicine use, dose, timing short forms, or safety notes.</p>
+                      <div id="chat-log" class="chat-log panel">
+                        <div class="message assistant">Analyze a prescription, then ask a question here.</div>
+                      </div>
+                      <div class="actions">
+                        <input id="chat-question" type="text" placeholder="Example: What does BD mean?" />
+                        <button type="button" id="ask-chat">Ask</button>
+                      </div>
+                    </section>
+                    <section>
                       <h2>Raw Result</h2>
                       <pre id="raw">No result yet.</pre>
                     </section>
@@ -319,6 +349,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                   const safety = document.querySelector("#safety");
                   const questions = document.querySelector("#questions");
                   const raw = document.querySelector("#raw");
+                  const chatLog = document.querySelector("#chat-log");
+                  const chatQuestion = document.querySelector("#chat-question");
+                  const askChat = document.querySelector("#ask-chat");
                   let cameraStream = null;
                   let selectedImageBlob = null;
 
@@ -408,6 +441,13 @@ Syrup Pantoprazole 40mg AC x 5 days`;
                   });
 
                   analyze.addEventListener("click", runAnalysis);
+                  askChat.addEventListener("click", askChatbot);
+                  chatQuestion.addEventListener("keydown", (event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      askChatbot();
+                    }
+                  });
 
                   clear.addEventListener("click", () => {
                     textArea.value = "";
@@ -422,6 +462,8 @@ Syrup Pantoprazole 40mg AC x 5 days`;
                     safety.textContent = "No safety review yet.";
                     questions.textContent = "No questions yet.";
                     raw.textContent = "No result yet.";
+                    chatLog.innerHTML = `<div class="message assistant">Analyze a prescription, then ask a question here.</div>`;
+                    chatQuestion.value = "";
                   });
 
                   async function runAnalysis() {
@@ -486,6 +528,47 @@ Syrup Pantoprazole 40mg AC x 5 days`;
                     questions.innerHTML = prompts.length
                       ? `<ul>${prompts.map((question) => `<li>${escapeHtml(question)}</li>`).join("")}</ul>`
                       : escapeHtml(labels.no_questions || "No questions generated.");
+                  }
+
+                  async function askChatbot() {
+                    const question = chatQuestion.value.trim();
+                    const text = textArea.value.trim();
+                    if (!question) {
+                      statusLine.textContent = "Type a chatbot question first.";
+                      return;
+                    }
+                    if (!text) {
+                      statusLine.textContent = "Add or analyze prescription text before asking the chatbot.";
+                      return;
+                    }
+                    appendChatMessage("user", question);
+                    chatQuestion.value = "";
+                    statusLine.textContent = "Chatbot is answering...";
+                    try {
+                      const response = await fetch("/v1/reasoning/chat", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          text,
+                          question,
+                          language: languageSelect.value,
+                        }),
+                      });
+                      const data = await response.json();
+                      appendChatMessage("assistant", `${data.answer}\n\nSafety note: ${data.safety_note}`);
+                      statusLine.textContent = "Chatbot answer ready.";
+                    } catch (error) {
+                      appendChatMessage("assistant", "I could not answer that right now. Please try again.");
+                      statusLine.textContent = "Chatbot failed. Please try again.";
+                    }
+                  }
+
+                  function appendChatMessage(role, text) {
+                    const message = document.createElement("div");
+                    message.className = `message ${role}`;
+                    message.textContent = text;
+                    chatLog.appendChild(message);
+                    chatLog.scrollTop = chatLog.scrollHeight;
                   }
 
                   function escapeHtml(value) {
