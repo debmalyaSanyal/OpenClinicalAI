@@ -20,6 +20,21 @@ class TestPrescriptionParser(unittest.TestCase):
         self.assertEqual(result["medicines"][0]["name"], "Paracetamol")
         self.assertEqual(result["medicines"][0]["frequency"], "morning and night")
 
+    def test_parses_rx_colon_and_continuation_duration(self) -> None:
+        result = parse_prescription_text(
+            """
+            DentalRx
+            Rx: Dexamethasone - 4 mg PO daily
+            for 3 day(s)
+            Quantity: 3x4 mg tabs
+            """
+        )
+        self.assertEqual(len(result["medicines"]), 1)
+        self.assertEqual(result["medicines"][0]["name"], "Dexamethasone")
+        self.assertEqual(result["medicines"][0]["dose"], "4 mg")
+        self.assertEqual(result["medicines"][0]["frequency"], "once daily")
+        self.assertEqual(result["medicines"][0]["duration"], "3 days")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -16,6 +16,10 @@ MEDICINE_KNOWLEDGE = {
         "use": "Antihistamine used for allergy, cold symptoms, itching, or sneezing.",
         "caution": "May cause sleepiness in some people.",
     },
+    "dexamethasone": {
+        "use": "Corticosteroid used to reduce inflammation in selected conditions.",
+        "caution": "Use only as prescribed. Review infection, diabetes, stomach irritation, and steroid side-effect risks with a clinician.",
+    },
     "levocetirizine": {
         "use": "Antihistamine used for allergy symptoms.",
         "caution": "May cause sleepiness. Avoid driving if drowsy.",

@@ -5,9 +5,11 @@ from dataclasses import dataclass
 
 
 DOSE_PATTERN = re.compile(r"\b(\d+(?:\.\d+)?\s?(?:mg|mcg|g|ml|iu|units?|tab|tabs?|cap|caps?))\b", re.I)
-DURATION_PATTERN = re.compile(r"\b(?:x|for)\s*(\d+\s*(?:days?|weeks?|months?))\b", re.I)
+DURATION_PATTERN = re.compile(r"\b(?:x|for)\s*(\d+\s*(?:day(?:s|\(s\))?|week(?:s|\(s\))?|month(?:s|\(s\))?))\b", re.I)
 FREQUENCY_MAP = {
     "od": "once daily",
+    "daily": "once daily",
+    "once daily": "once daily",
     "bd": "twice daily",
     "bid": "twice daily",
     "tds": "three times daily",
@@ -30,6 +32,19 @@ KNOWN_MEDICINES = {
     "levocetirizine",
     "dolo",
     "calpol",
+    "dexamethasone",
+}
+NON_MEDICINE_TOKENS = {
+    "address",
+    "date",
+    "dr",
+    "for",
+    "healthcare",
+    "quantity",
+    "refills",
+    "rx",
+    "send",
+    "signature",
 }
 
 
@@ -45,6 +60,7 @@ class ParsedMedicine:
 def parse_prescription_text(text: str) -> dict:
     lines = [clean_line(line) for line in text.splitlines()]
     lines = [line for line in lines if line]
+    lines = merge_instruction_continuations(lines)
     medicines = [medicine for line in lines if (medicine := parse_medicine_line(line))]
     symptoms = extract_symptoms(text)
     warnings = []
@@ -83,7 +99,7 @@ def parse_medicine_line(line: str) -> ParsedMedicine | None:
         name=name,
         dose=dose_match.group(1) if dose_match else None,
         frequency=frequency,
-        duration=duration_match.group(1) if duration_match else None,
+        duration=normalize_duration(duration_match.group(1)) if duration_match else None,
         instruction=line,
     )
 
@@ -95,14 +111,17 @@ def looks_like_medicine_line(line: str) -> bool:
 
 
 def extract_medicine_name(line: str) -> str | None:
-    cleaned = re.sub(r"^(rx|tab|tablet|cap|capsule|syr|syrup|inj|injection)\.?\s+", "", line, flags=re.I)
+    cleaned = re.sub(r"^(rx|tab|tablet|cap|capsule|syr|syrup|inj|injection)\s*[:.\-]?\s+", "", line, flags=re.I)
     tokens = re.findall(r"[A-Za-z][A-Za-z0-9\-]*", cleaned)
     for index, token in enumerate(tokens):
         if token.lower() in KNOWN_MEDICINES:
             return token.title()
         if token.lower() in {"tab", "tablet", "cap", "capsule", "syr", "syrup", "inj", "injection"} and index + 1 < len(tokens):
             return tokens[index + 1].title()
-    return tokens[0].title() if tokens else None
+    for token in tokens:
+        if token.lower() not in NON_MEDICINE_TOKENS and len(token) > 2:
+            return token.title()
+    return None
 
 
 def extract_frequency(line: str) -> str | None:
@@ -118,6 +137,24 @@ def extract_frequency(line: str) -> str | None:
     if re.search(r"\b0-0-1\b", line):
         return "night"
     return None
+
+
+def merge_instruction_continuations(lines: list[str]) -> list[str]:
+    merged: list[str] = []
+    for line in lines:
+        if merged and is_continuation_line(line):
+            merged[-1] = f"{merged[-1]} {line}"
+        else:
+            merged.append(line)
+    return merged
+
+
+def is_continuation_line(line: str) -> bool:
+    return bool(re.search(r"^(for|x)\s+\d+|^quantity\b|^refills?\b", line, re.I))
+
+
+def normalize_duration(duration: str) -> str:
+    return re.sub(r"\bday$", "days", duration.replace("(s)", "s"), flags=re.I)
 
 
 def extract_symptoms(text: str) -> list[str]:
