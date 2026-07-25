@@ -49,6 +49,31 @@ class TestPrescriptionParser(unittest.TestCase):
         self.assertEqual(result["medicines"][1]["frequency"], "at bedtime")
         self.assertEqual(result["medicines"][2]["frequency"], "before food")
 
+    def test_parses_case_history_medicine_table_rows(self) -> None:
+        result = parse_prescription_text(
+            """
+            Other Medication:
+            SLNo. OTHER MEDICINE DOSE PURPOSE
+            1 Stamlo 5 od htn
+            2 Tazloc 40 od htn
+            3 Atrovas 10mg od chol
+            4 Lupoxa OD od RA
+            5 COLLASHOT C2 PLUS od pain
+            6 Macvestin 500 mg od RA
+            7 Pregabid CR 82.5 od pain
+            8 Lumia 60K once monthly vitd3
+            9 Primolut-N od menstruation
+            """
+        )
+        names = [medicine["name"] for medicine in result["medicines"]]
+        self.assertIn("Stamlo", names)
+        self.assertIn("Tazloc", names)
+        self.assertIn("Atrovas", names)
+        self.assertIn("Primolut-N", names)
+        self.assertEqual(result["medicines"][0]["dose"], "5")
+        self.assertEqual(result["medicines"][0]["frequency"], "once daily")
+        self.assertGreaterEqual(len(result["medicines"]), 8)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 
 DOSE_PATTERN = re.compile(r"\b(\d+(?:\.\d+)?\s?(?:mg|mcg|g|ml|iu|units?|tab|tabs?|cap|caps?))\b", re.I)
+TABLE_DOSE_PATTERN = re.compile(r"\b(\d+(?:\.\d+)?)\b")
 DURATION_PATTERN = re.compile(r"\b(?:x|for)\s*(\d+\s*(?:day(?:s|\(s\))?|week(?:s|\(s\))?|month(?:s|\(s\))?))\b", re.I)
 FREQUENCY_DETAILS = {
     "od": {
@@ -74,6 +75,16 @@ KNOWN_MEDICINES = {
     "dolo",
     "calpol",
     "dexamethasone",
+    "atrovas",
+    "collashot",
+    "lumia",
+    "lupoxa",
+    "macvestin",
+    "pregabid",
+    "primolut",
+    "primolut-n",
+    "stamlo",
+    "tazloc",
 }
 NON_MEDICINE_TOKENS = {
     "address",
@@ -130,6 +141,8 @@ def clean_line(line: str) -> str:
 
 def parse_medicine_line(line: str) -> ParsedMedicine | None:
     normalized = line.lower()
+    if table_medicine := parse_table_medicine_line(line):
+        return table_medicine
     if not looks_like_medicine_line(normalized):
         return None
     name = extract_medicine_name(line)
@@ -152,7 +165,53 @@ def parse_medicine_line(line: str) -> ParsedMedicine | None:
 def looks_like_medicine_line(line: str) -> bool:
     if any(medicine in line for medicine in KNOWN_MEDICINES):
         return True
+    if extract_frequency(line) and re.search(r"\b[a-z][a-z0-9\-]{2,}\b", line, re.I):
+        return not re.search(r"\b(date|pulse|weight|spo2|purpose|dose|medicine|history)\b", line, re.I)
     return bool(re.search(r"\b(tab|tablet|cap|capsule|syr|syrup|inj|injection|rx)\b", line, re.I))
+
+
+def parse_table_medicine_line(line: str) -> ParsedMedicine | None:
+    cleaned = re.sub(r"^\d+\s+", "", line.strip())
+    if re.match(r"^(rx|tab|tablet|cap|capsule|syr|syrup|inj|injection)\s*[:.\-]?\s+", cleaned, re.I):
+        return None
+    if re.search(r"\b(other medicine|medicine|dose|purpose|sln?o)\b", cleaned, re.I):
+        return None
+    frequency_matches = list(re.finditer(r"\b(od|bd|bid|tds|tid|qid|hs|sos|prn|ac|pc|daily|once monthly|monthly)\b", cleaned, re.I))
+    if not frequency_matches:
+        return None
+    frequency_match = frequency_matches[-1]
+    left = cleaned[: frequency_match.start()].strip(" :-")
+    if not left:
+        return None
+    dose = None
+    dose_match = list(DOSE_PATTERN.finditer(left)) or list(TABLE_DOSE_PATTERN.finditer(left))
+    if dose_match:
+        last_dose = dose_match[-1]
+        dose = last_dose.group(1)
+        name = left[: last_dose.start()].strip(" :-")
+    else:
+        name = left
+    name = normalize_table_medicine_name(name)
+    if not name:
+        return None
+    frequency = extract_frequency(frequency_match.group(1))
+    return ParsedMedicine(
+        name=name,
+        dose=dose,
+        frequency=frequency["frequency"] if frequency else None,
+        frequency_abbreviation=frequency["abbreviation"] if frequency else None,
+        frequency_explanation=frequency["explanation"] if frequency else None,
+        duration=None,
+        instruction=line,
+    )
+
+
+def normalize_table_medicine_name(name: str) -> str | None:
+    name = re.sub(r"\b(plus|tablet|tab|cap|capsule)\b", "", name, flags=re.I)
+    name = re.sub(r"\s+", " ", name).strip(" :-")
+    if not name or name.lower() in NON_MEDICINE_TOKENS:
+        return None
+    return " ".join(part.upper() if part.lower() in {"cr", "od"} else part.title() for part in name.split())
 
 
 def extract_medicine_name(line: str) -> str | None:

@@ -160,8 +160,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     background: #ffffff;
                     color: #113d34;
                   }
-                  .preview,
-                  video {
+                  .preview {
                     width: 100%;
                     max-height: 260px;
                     object-fit: contain;
@@ -169,6 +168,54 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     border: 1px solid #d8e0dd;
                     display: none;
                     background: #f5f7f6;
+                  }
+                  .camera-modal {
+                    position: fixed;
+                    inset: 0;
+                    z-index: 20;
+                    display: none;
+                    grid-template-rows: 1fr auto;
+                    background: #07110f;
+                  }
+                  .camera-modal.open {
+                    display: grid;
+                  }
+                  .camera-frame {
+                    position: relative;
+                    display: grid;
+                    place-items: center;
+                    min-height: 0;
+                    padding: 16px;
+                  }
+                  video {
+                    width: 100%;
+                    height: 100%;
+                    max-height: calc(100vh - 116px);
+                    object-fit: contain;
+                    background: #000000;
+                  }
+                  .scan-guide {
+                    position: absolute;
+                    width: min(88vw, 720px);
+                    aspect-ratio: 0.7;
+                    border: 3px solid #f6f8f7;
+                    border-radius: 8px;
+                    box-shadow: 0 0 0 999px rgba(0, 0, 0, 0.24);
+                    pointer-events: none;
+                  }
+                  .camera-controls {
+                    display: flex;
+                    flex-wrap: wrap;
+                    justify-content: center;
+                    gap: 12px;
+                    padding: 16px;
+                    background: #07110f;
+                  }
+                  .camera-hint {
+                    width: 100%;
+                    margin: 0;
+                    color: #f6f8f7;
+                    text-align: center;
                   }
                   .status {
                     min-height: 22px;
@@ -298,7 +345,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                         <button type="button" class="secondary" id="sample">Use Sample</button>
                       </div>
                       <p class="status" id="status">Ready.</p>
-                      <video id="camera" autoplay playsinline muted hidden></video>
                       <img id="preview" class="preview" alt="Prescription preview" />
                     </section>
                     <section>
@@ -344,12 +390,25 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     </section>
                   </div>
                 </main>
+                <div id="camera-modal" class="camera-modal" aria-label="Camera capture">
+                  <div class="camera-frame">
+                    <video id="camera" autoplay playsinline muted></video>
+                    <div class="scan-guide"></div>
+                  </div>
+                  <div class="camera-controls">
+                    <p id="camera-hint" class="camera-hint">Place the full document inside the white frame.</p>
+                    <button type="button" id="modal-capture-photo">Scan Document</button>
+                    <button type="button" class="secondary" id="close-camera">Close Camera</button>
+                  </div>
+                </div>
                 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
                 <script>
                   const fileInput = document.querySelector("#prescription-file");
                   const readImage = document.querySelector("#read-image");
                   const startCamera = document.querySelector("#start-camera");
                   const capturePhoto = document.querySelector("#capture-photo");
+                  const modalCapturePhoto = document.querySelector("#modal-capture-photo");
+                  const closeCamera = document.querySelector("#close-camera");
                   const sample = document.querySelector("#sample");
                   const analyze = document.querySelector("#analyze");
                   const clear = document.querySelector("#clear");
@@ -359,6 +418,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                   const languageSelect = document.querySelector("#language");
                   const preview = document.querySelector("#preview");
                   const camera = document.querySelector("#camera");
+                  const cameraModal = document.querySelector("#camera-modal");
+                  const cameraHint = document.querySelector("#camera-hint");
                   const statusLine = document.querySelector("#status");
                   const summary = document.querySelector("#summary");
                   const medicines = document.querySelector("#medicines");
@@ -403,33 +464,54 @@ Creatinine 1.0 mg/dL`;
                     try {
                       stopCamera();
                       cameraStream = await navigator.mediaDevices.getUserMedia({
-                        video: { facingMode: { ideal: "environment" } },
+                        video: {
+                          facingMode: { ideal: "environment" },
+                          width: { ideal: 1920 },
+                          height: { ideal: 1080 },
+                        },
                         audio: false,
                       });
                       camera.srcObject = cameraStream;
-                      camera.hidden = false;
-                      statusLine.textContent = "Camera opened. Place the prescription clearly, then take a photo.";
+                      cameraModal.classList.add("open");
+                      cameraHint.textContent = "Place the full document inside the white frame. Good lighting gives better OCR.";
+                      statusLine.textContent = "Scanner opened. Place the document inside the frame, then scan.";
                     } catch (error) {
                       statusLine.textContent = "Camera permission was blocked or unavailable. Use file upload instead.";
                     }
                   });
 
-                  capturePhoto.addEventListener("click", async () => {
-                    if (!cameraStream || camera.hidden) {
+                  capturePhoto.addEventListener("click", captureCameraPhoto);
+                  modalCapturePhoto.addEventListener("click", captureCameraPhoto);
+                  closeCamera.addEventListener("click", stopCamera);
+
+                  async function captureCameraPhoto() {
+                    if (!cameraStream || !cameraModal.classList.contains("open")) {
                       statusLine.textContent = "Open the camera first.";
                       return;
                     }
                     const canvas = document.createElement("canvas");
-                    canvas.width = camera.videoWidth || 1280;
-                    canvas.height = camera.videoHeight || 720;
+                    const crop = getDocumentFrameCrop();
+                    canvas.width = 1600;
+                    canvas.height = Math.round(1600 * (crop.height / crop.width));
                     const context = canvas.getContext("2d");
-                    context.drawImage(camera, 0, 0, canvas.width, canvas.height);
+                    context.drawImage(
+                      camera,
+                      crop.x,
+                      crop.y,
+                      crop.width,
+                      crop.height,
+                      0,
+                      0,
+                      canvas.width,
+                      canvas.height
+                    );
+                    enhanceCanvasForOcr(context, canvas.width, canvas.height);
                     selectedImageBlob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
                     preview.src = URL.createObjectURL(selectedImageBlob);
                     preview.style.display = "block";
                     stopCamera();
-                    statusLine.textContent = "Photo captured. Run OCR when ready.";
-                  });
+                    statusLine.textContent = "Document scanned and enhanced. Run OCR when ready.";
+                  }
 
                   readImage.addEventListener("click", async () => {
                     const imageSource = selectedImageBlob || fileInput.files[0];
@@ -666,16 +748,7 @@ Creatinine 1.0 mg/dL`;
                     context.fillRect(0, 0, canvas.width, canvas.height);
                     context.drawImage(image, 0, 0, canvas.width, canvas.height);
 
-                    const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-                    const pixels = imageData.data;
-                    for (let index = 0; index < pixels.length; index += 4) {
-                      const gray = pixels[index] * 0.299 + pixels[index + 1] * 0.587 + pixels[index + 2] * 0.114;
-                      const boosted = gray > 170 ? 255 : gray < 120 ? 0 : gray;
-                      pixels[index] = boosted;
-                      pixels[index + 1] = boosted;
-                      pixels[index + 2] = boosted;
-                    }
-                    context.putImageData(imageData, 0, 0);
+                    enhanceCanvasForOcr(context, canvas.width, canvas.height);
                     return await new Promise((resolve, reject) => {
                       canvas.toBlob((blob) => {
                         if (blob) {
@@ -735,7 +808,59 @@ Creatinine 1.0 mg/dL`;
                     }
                     cameraStream = null;
                     camera.srcObject = null;
-                    camera.hidden = true;
+                    cameraModal.classList.remove("open");
+                  }
+
+                  function getDocumentFrameCrop() {
+                    const videoWidth = camera.videoWidth || 1280;
+                    const videoHeight = camera.videoHeight || 720;
+                    const videoRect = camera.getBoundingClientRect();
+                    const guideRect = document.querySelector(".scan-guide").getBoundingClientRect();
+                    const videoRatio = videoWidth / videoHeight;
+                    const boxRatio = videoRect.width / videoRect.height;
+                    let renderedWidth = videoRect.width;
+                    let renderedHeight = videoRect.height;
+                    let offsetX = 0;
+                    let offsetY = 0;
+                    if (boxRatio > videoRatio) {
+                      renderedHeight = videoRect.height;
+                      renderedWidth = renderedHeight * videoRatio;
+                      offsetX = (videoRect.width - renderedWidth) / 2;
+                    } else {
+                      renderedWidth = videoRect.width;
+                      renderedHeight = renderedWidth / videoRatio;
+                      offsetY = (videoRect.height - renderedHeight) / 2;
+                    }
+                    const relativeX = (guideRect.left - videoRect.left - offsetX) / renderedWidth;
+                    const relativeY = (guideRect.top - videoRect.top - offsetY) / renderedHeight;
+                    const relativeWidth = guideRect.width / renderedWidth;
+                    const relativeHeight = guideRect.height / renderedHeight;
+                    const x = clamp(relativeX * videoWidth, 0, videoWidth - 1);
+                    const y = clamp(relativeY * videoHeight, 0, videoHeight - 1);
+                    return {
+                      x,
+                      y,
+                      width: clamp(relativeWidth * videoWidth, 1, videoWidth - x),
+                      height: clamp(relativeHeight * videoHeight, 1, videoHeight - y),
+                    };
+                  }
+
+                  function enhanceCanvasForOcr(context, width, height) {
+                    const imageData = context.getImageData(0, 0, width, height);
+                    const pixels = imageData.data;
+                    for (let index = 0; index < pixels.length; index += 4) {
+                      const gray = pixels[index] * 0.299 + pixels[index + 1] * 0.587 + pixels[index + 2] * 0.114;
+                      const contrast = (gray - 128) * 1.45 + 128;
+                      const boosted = contrast > 172 ? 255 : contrast < 118 ? 0 : contrast;
+                      pixels[index] = boosted;
+                      pixels[index + 1] = boosted;
+                      pixels[index + 2] = boosted;
+                    }
+                    context.putImageData(imageData, 0, 0);
+                  }
+
+                  function clamp(value, min, max) {
+                    return Math.min(Math.max(value, min), max);
                   }
                 </script>
               </body>
