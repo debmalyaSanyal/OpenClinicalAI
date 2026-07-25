@@ -6,18 +6,59 @@ from dataclasses import dataclass
 
 DOSE_PATTERN = re.compile(r"\b(\d+(?:\.\d+)?\s?(?:mg|mcg|g|ml|iu|units?|tab|tabs?|cap|caps?))\b", re.I)
 DURATION_PATTERN = re.compile(r"\b(?:x|for)\s*(\d+\s*(?:day(?:s|\(s\))?|week(?:s|\(s\))?|month(?:s|\(s\))?))\b", re.I)
-FREQUENCY_MAP = {
-    "od": "once daily",
-    "daily": "once daily",
-    "once daily": "once daily",
-    "bd": "twice daily",
-    "bid": "twice daily",
-    "tds": "three times daily",
-    "tid": "three times daily",
-    "qid": "four times daily",
-    "hs": "at bedtime",
-    "sos": "when needed",
-    "prn": "when needed",
+FREQUENCY_DETAILS = {
+    "od": {
+        "frequency": "once daily",
+        "explanation": "OD means once daily, usually one dose in a day.",
+    },
+    "daily": {
+        "frequency": "once daily",
+        "explanation": "Daily means one dose in a day.",
+    },
+    "once daily": {
+        "frequency": "once daily",
+        "explanation": "Once daily means one dose in a day.",
+    },
+    "bd": {
+        "frequency": "twice daily",
+        "explanation": "BD means twice daily, usually morning and evening.",
+    },
+    "bid": {
+        "frequency": "twice daily",
+        "explanation": "BID means twice daily, usually morning and evening.",
+    },
+    "tds": {
+        "frequency": "three times daily",
+        "explanation": "TDS means three times daily, usually morning, afternoon, and night.",
+    },
+    "tid": {
+        "frequency": "three times daily",
+        "explanation": "TID means three times daily, usually morning, afternoon, and night.",
+    },
+    "qid": {
+        "frequency": "four times daily",
+        "explanation": "QID means four times daily.",
+    },
+    "hs": {
+        "frequency": "at bedtime",
+        "explanation": "HS means at bedtime.",
+    },
+    "sos": {
+        "frequency": "when needed",
+        "explanation": "SOS means take only when needed, as prescribed.",
+    },
+    "prn": {
+        "frequency": "when needed",
+        "explanation": "PRN means take only when needed, as prescribed.",
+    },
+    "ac": {
+        "frequency": "before food",
+        "explanation": "AC means before food.",
+    },
+    "pc": {
+        "frequency": "after food",
+        "explanation": "PC means after food.",
+    },
 }
 KNOWN_MEDICINES = {
     "amoxicillin",
@@ -53,6 +94,8 @@ class ParsedMedicine:
     name: str
     dose: str | None
     frequency: str | None
+    frequency_abbreviation: str | None
+    frequency_explanation: str | None
     duration: str | None
     instruction: str
 
@@ -98,7 +141,9 @@ def parse_medicine_line(line: str) -> ParsedMedicine | None:
     return ParsedMedicine(
         name=name,
         dose=dose_match.group(1) if dose_match else None,
-        frequency=frequency,
+        frequency=frequency["frequency"] if frequency else None,
+        frequency_abbreviation=frequency["abbreviation"] if frequency else None,
+        frequency_explanation=frequency["explanation"] if frequency else None,
         duration=normalize_duration(duration_match.group(1)) if duration_match else None,
         instruction=line,
     )
@@ -124,18 +169,34 @@ def extract_medicine_name(line: str) -> str | None:
     return None
 
 
-def extract_frequency(line: str) -> str | None:
-    for short_form, meaning in FREQUENCY_MAP.items():
+def extract_frequency(line: str) -> dict | None:
+    for short_form, detail in FREQUENCY_DETAILS.items():
         if re.search(rf"\b{short_form}\b", line, re.I):
-            return meaning
+            return {"abbreviation": short_form.upper(), **detail}
     if re.search(r"\b1-0-1\b", line):
-        return "morning and night"
+        return {
+            "abbreviation": "1-0-1",
+            "frequency": "morning and night",
+            "explanation": "1-0-1 means take in the morning and at night.",
+        }
     if re.search(r"\b1-1-1\b", line):
-        return "morning, afternoon, and night"
+        return {
+            "abbreviation": "1-1-1",
+            "frequency": "morning, afternoon, and night",
+            "explanation": "1-1-1 means take in the morning, afternoon, and night.",
+        }
     if re.search(r"\b1-0-0\b", line):
-        return "morning"
+        return {
+            "abbreviation": "1-0-0",
+            "frequency": "morning",
+            "explanation": "1-0-0 means take in the morning.",
+        }
     if re.search(r"\b0-0-1\b", line):
-        return "night"
+        return {
+            "abbreviation": "0-0-1",
+            "frequency": "night",
+            "explanation": "0-0-1 means take at night.",
+        }
     return None
 
 

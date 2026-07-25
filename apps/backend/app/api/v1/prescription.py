@@ -23,7 +23,7 @@ def parse_text(payload: dict) -> dict:
 
 @router.post("/analyze")
 def analyze(payload: dict) -> dict:
-    return analyze_prescription_text(str(payload.get("text", "")))
+    return analyze_prescription_text(str(payload.get("text", "")), str(payload.get("language", "en")))
 
 
 @router.post("/upload")

@@ -115,6 +115,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     align-content: start;
                   }
                   input[type="file"],
+                  select,
                   textarea {
                     width: 100%;
                     padding: 13px;
@@ -128,6 +129,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     resize: vertical;
                     font: inherit;
                     line-height: 1.5;
+                  }
+                  label {
+                    display: grid;
+                    gap: 8px;
+                    margin: 14px 0 0;
+                    color: #31413c;
+                    font-weight: 700;
                   }
                   .actions {
                     display: flex;
@@ -240,6 +248,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                       <h2>Prescription Input</h2>
                       <p>Upload a clear printed image or paste typed prescription text.</p>
                       <input id="prescription-file" name="file" type="file" accept="image/*" />
+                      <label>
+                        Output Language
+                        <select id="language">
+                          <option value="en">English</option>
+                          <option value="hi">Hindi</option>
+                          <option value="bn">Bengali</option>
+                          <option value="es">Spanish</option>
+                        </select>
+                      </label>
                       <div class="actions">
                         <button type="button" id="read-image">Read Image OCR</button>
                         <button type="button" class="secondary" id="sample">Use Sample</button>
@@ -287,6 +304,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                   const analyze = document.querySelector("#analyze");
                   const clear = document.querySelector("#clear");
                   const textArea = document.querySelector("#ocr-text");
+                  const languageSelect = document.querySelector("#language");
                   const preview = document.querySelector("#preview");
                   const statusLine = document.querySelector("#status");
                   const summary = document.querySelector("#summary");
@@ -296,9 +314,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                   const raw = document.querySelector("#raw");
 
                   const sampleText = `Diagnosis: fever with throat infection
-Tab Paracetamol 500mg 1-0-1 x 3 days
+Tab Paracetamol 500mg OD x 3 days
 Cap Amoxicillin 500mg BD x 5 days
-Tab Cetirizine 10mg HS x 5 days`;
+Tab Cetirizine 10mg HS x 5 days
+Syrup Pantoprazole 40mg AC x 5 days`;
 
                   fileInput.addEventListener("change", () => {
                     const file = fileInput.files[0];
@@ -367,7 +386,7 @@ Tab Cetirizine 10mg HS x 5 days`;
                       const response = await fetch("/v1/prescription/analyze", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ text }),
+                        body: JSON.stringify({ text, language: languageSelect.value }),
                       });
                       const data = await response.json();
                       renderResult(data);
@@ -378,16 +397,17 @@ Tab Cetirizine 10mg HS x 5 days`;
                   }
 
                   function renderResult(data) {
+                    const labels = data.ui_labels || {};
                     raw.textContent = JSON.stringify(data, null, 2);
                     summary.innerHTML = `
                       <p>${escapeHtml(data.patient_summary || "No summary available.")}</p>
-                      <span class="badge">Confidence: ${escapeHtml(data.confidence?.level || "unknown")}</span>
+                      <span class="badge">${escapeHtml(labels.confidence || "Confidence")}: ${escapeHtml(data.confidence?.level || "unknown")}</span>
                     `;
                     medicines.innerHTML = "";
                     const detected = data.parsed_prescription?.medicines || [];
                     const knowledge = data.medicine_knowledge || [];
                     if (!detected.length) {
-                      medicines.innerHTML = `<div class="panel">No medicines were confidently detected.</div>`;
+                      medicines.innerHTML = `<div class="panel">${escapeHtml(labels.no_medicines || "No medicines were confidently detected.")}</div>`;
                     } else {
                       detected.forEach((medicine, index) => {
                         const info = knowledge[index] || {};
@@ -395,11 +415,12 @@ Tab Cetirizine 10mg HS x 5 days`;
                         item.className = "panel medicine";
                         item.innerHTML = `
                           <h3>${escapeHtml(medicine.name || "Unknown medicine")}</h3>
-                          <p><strong>Dose:</strong> ${escapeHtml(medicine.dose || "Not detected")}</p>
-                          <p><strong>Frequency:</strong> ${escapeHtml(medicine.frequency || "Not detected")}</p>
-                          <p><strong>Duration:</strong> ${escapeHtml(medicine.duration || "Not detected")}</p>
-                          <p><strong>Use:</strong> ${escapeHtml(info.use || "No explanation available.")}</p>
-                          <p><strong>Caution:</strong> ${escapeHtml(info.caution || "Verify with a clinician.")}</p>
+                          <p><strong>${escapeHtml(labels.dose || "Dose")}:</strong> ${escapeHtml(medicine.dose || "Not detected")}</p>
+                          <p><strong>${escapeHtml(labels.frequency || "Frequency")}:</strong> ${escapeHtml(medicine.frequency || "Not detected")}</p>
+                          <p><strong>${escapeHtml(labels.duration || "Duration")}:</strong> ${escapeHtml(medicine.duration || "Not detected")}</p>
+                          <p><strong>${escapeHtml(labels.timing_explanation || "Timing meaning")}:</strong> ${escapeHtml(medicine.frequency_explanation || "Not detected")}</p>
+                          <p><strong>${escapeHtml(labels.use || "Use")}:</strong> ${escapeHtml(info.use || "No explanation available.")}</p>
+                          <p><strong>${escapeHtml(labels.caution || "Caution")}:</strong> ${escapeHtml(info.caution || "Verify with a clinician.")}</p>
                         `;
                         medicines.appendChild(item);
                       });
@@ -407,15 +428,15 @@ Tab Cetirizine 10mg HS x 5 days`;
 
                     const flags = data.safety_review?.flags || [];
                     if (!flags.length) {
-                      safety.innerHTML = `<p>No urgent demo safety flags detected.</p><span class="badge">Risk: ${escapeHtml(data.safety_review?.risk_level || "routine")}</span>`;
+                      safety.innerHTML = `<p>${escapeHtml(labels.no_safety_flags || "No urgent demo safety flags detected.")}</p><span class="badge">${escapeHtml(labels.risk || "Risk")}: ${escapeHtml(data.safety_review?.risk_level || "routine")}</span>`;
                     } else {
-                      safety.innerHTML = `<span class="badge">Risk: ${escapeHtml(data.safety_review.risk_level)}</span><ul>${flags.map((flag) => `<li>${escapeHtml(flag.message)}</li>`).join("")}</ul>`;
+                      safety.innerHTML = `<span class="badge">${escapeHtml(labels.risk || "Risk")}: ${escapeHtml(data.safety_review.risk_level)}</span><ul>${flags.map((flag) => `<li>${escapeHtml(flag.message)}</li>`).join("")}</ul>`;
                     }
 
                     const prompts = data.questions_for_doctor || [];
                     questions.innerHTML = prompts.length
                       ? `<ul>${prompts.map((question) => `<li>${escapeHtml(question)}</li>`).join("")}</ul>`
-                      : "No questions generated.";
+                      : escapeHtml(labels.no_questions || "No questions generated.");
                   }
 
                   function escapeHtml(value) {

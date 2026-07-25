@@ -9,4 +9,7 @@ router = APIRouter()
 
 @router.post("")
 def reason(payload: dict) -> dict:
-    return analyze_prescription_text(str(payload.get("text", payload.get("question", ""))))
+    return analyze_prescription_text(
+        str(payload.get("text", payload.get("question", ""))),
+        str(payload.get("language", "en")),
+    )

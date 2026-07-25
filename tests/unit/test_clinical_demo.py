@@ -15,6 +15,13 @@ class TestClinicalDemo(unittest.TestCase):
         self.assertEqual(len(result["medicine_knowledge"]), 2)
         self.assertIn("patient_summary", result)
 
+    def test_language_selection_localizes_patient_output(self) -> None:
+        result = analyze_prescription_text("Tab Paracetamol 500mg OD x 3 days", "hi")
+        self.assertEqual(result["language"], "hi")
+        self.assertEqual(result["ui_labels"]["dose"], "खुराक")
+        self.assertEqual(result["parsed_prescription"]["medicines"][0]["frequency"], "दिन में एक बार")
+        self.assertIn("OD का अर्थ", result["parsed_prescription"]["medicines"][0]["frequency_explanation"])
+
 
 if __name__ == "__main__":
     unittest.main()

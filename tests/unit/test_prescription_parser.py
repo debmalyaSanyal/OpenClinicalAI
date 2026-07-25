@@ -19,6 +19,8 @@ class TestPrescriptionParser(unittest.TestCase):
         self.assertEqual(len(result["medicines"]), 3)
         self.assertEqual(result["medicines"][0]["name"], "Paracetamol")
         self.assertEqual(result["medicines"][0]["frequency"], "morning and night")
+        self.assertEqual(result["medicines"][1]["frequency_abbreviation"], "BD")
+        self.assertIn("twice daily", result["medicines"][1]["frequency_explanation"])
 
     def test_parses_rx_colon_and_continuation_duration(self) -> None:
         result = parse_prescription_text(
@@ -34,6 +36,18 @@ class TestPrescriptionParser(unittest.TestCase):
         self.assertEqual(result["medicines"][0]["dose"], "4 mg")
         self.assertEqual(result["medicines"][0]["frequency"], "once daily")
         self.assertEqual(result["medicines"][0]["duration"], "3 days")
+
+    def test_explains_common_short_forms(self) -> None:
+        result = parse_prescription_text(
+            """
+            Tab Paracetamol 500mg OD x 3 days
+            Tab Cetirizine 10mg HS x 5 days
+            Syrup Pantoprazole 40mg AC x 5 days
+            """
+        )
+        self.assertEqual(result["medicines"][0]["frequency_explanation"], "OD means once daily, usually one dose in a day.")
+        self.assertEqual(result["medicines"][1]["frequency"], "at bedtime")
+        self.assertEqual(result["medicines"][2]["frequency"], "before food")
 
 
 if __name__ == "__main__":
