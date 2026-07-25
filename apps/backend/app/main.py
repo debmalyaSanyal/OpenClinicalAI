@@ -314,13 +314,26 @@ Tab Cetirizine 10mg HS x 5 days`;
                       statusLine.textContent = "Please choose a prescription image first.";
                       return;
                     }
-                    statusLine.textContent = "Reading image OCR. This may take a little while.";
+                    statusLine.textContent = "Preparing image for OCR...";
                     try {
-                      const output = await Tesseract.recognize(file, "eng");
+                      const preparedImage = await prepareImageForOcr(file);
+                      statusLine.textContent = "Reading image OCR. This may take a little while.";
+                      const output = await Tesseract.recognize(preparedImage, "eng", {
+                        logger: (event) => {
+                          if (event.status === "recognizing text") {
+                            const progress = Math.round((event.progress || 0) * 100);
+                            statusLine.textContent = `Reading image OCR... ${progress}%`;
+                          }
+                        },
+                      });
                       textArea.value = output.data.text.trim();
-                      statusLine.textContent = "OCR complete. Review the text, then analyze.";
+                      if (textArea.value) {
+                        statusLine.textContent = "OCR complete. Review the text, then analyze.";
+                      } else {
+                        statusLine.textContent = "OCR finished, but no text was detected. Try a sharper image or use typed text.";
+                      }
                     } catch (error) {
-                      statusLine.textContent = "OCR failed. Paste typed prescription text or use the sample.";
+                      statusLine.textContent = "OCR failed. Try converting the image to PNG/JPG, paste typed text, or use the sample.";
                     }
                   });
 
@@ -412,6 +425,47 @@ Tab Cetirizine 10mg HS x 5 days`;
                       .replaceAll(">", "&gt;")
                       .replaceAll('"', "&quot;")
                       .replaceAll("'", "&#039;");
+                  }
+
+                  async function prepareImageForOcr(file) {
+                    const image = await loadImage(file);
+                    const scale = Math.min(3, Math.max(1.5, 1800 / image.width));
+                    const canvas = document.createElement("canvas");
+                    canvas.width = Math.round(image.width * scale);
+                    canvas.height = Math.round(image.height * scale);
+                    const context = canvas.getContext("2d", { willReadFrequently: true });
+                    context.fillStyle = "#ffffff";
+                    context.fillRect(0, 0, canvas.width, canvas.height);
+                    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+                    const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+                    const pixels = imageData.data;
+                    for (let index = 0; index < pixels.length; index += 4) {
+                      const gray = pixels[index] * 0.299 + pixels[index + 1] * 0.587 + pixels[index + 2] * 0.114;
+                      const boosted = gray > 170 ? 255 : gray < 120 ? 0 : gray;
+                      pixels[index] = boosted;
+                      pixels[index + 1] = boosted;
+                      pixels[index + 2] = boosted;
+                    }
+                    context.putImageData(imageData, 0, 0);
+                    return await new Promise((resolve, reject) => {
+                      canvas.toBlob((blob) => {
+                        if (blob) {
+                          resolve(blob);
+                        } else {
+                          reject(new Error("Could not convert image for OCR."));
+                        }
+                      }, "image/png");
+                    });
+                  }
+
+                  function loadImage(file) {
+                    return new Promise((resolve, reject) => {
+                      const image = new Image();
+                      image.onload = () => resolve(image);
+                      image.onerror = reject;
+                      image.src = URL.createObjectURL(file);
+                    });
                   }
                 </script>
               </body>
