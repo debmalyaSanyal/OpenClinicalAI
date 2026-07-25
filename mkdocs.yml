@@ -1,0 +1,21 @@
+site_name: OpenClinicalAI
+site_description: FHIR-first, plugin-based clinical AI platform foundation.
+repo_name: OpenClinicalAI/OpenClinicalAI
+theme:
+  name: material
+  features:
+    - navigation.sections
+    - navigation.top
+    - search.suggest
+nav:
+  - Home: index.md
+  - Architecture: architecture.md
+  - Developer Guide: developer-guide.md
+  - Plugin Guide: plugin-guide.md
+  - FHIR Guide: fhir-guide.md
+  - API Reference: api-reference.md
+  - Deployment: deployment-guide.md
+  - Security: security.md
+  - Observability: observability.md
+  - Roadmap: roadmap.md
+  - FAQ: faq.md
