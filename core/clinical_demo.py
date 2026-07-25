@@ -244,13 +244,20 @@ def analyze_prescription_text(text: str, language: str = "en") -> dict:
     medicines = parsed["medicines"]
     knowledge = [lookup_medicine(medicine["name"]) for medicine in medicines]
     safety = evaluate_safety(text, medicines)
+    clinical_values = extract_lab_tests(text, "generic")
+    patient_summary = build_patient_summary(parsed, knowledge, safety)
+    if clinical_values:
+        names = ", ".join(f"{value['name']} {value['value']:g} {value['unit']}" for value in clinical_values)
+        patient_summary += f" Also detected clinical value(s): {names}."
     result = {
         "status": "complete",
+        "document_type": "prescription",
         "language": language,
         "parsed_prescription": parsed,
+        "clinical_values": clinical_values,
         "medicine_knowledge": knowledge,
         "safety_review": safety,
-        "patient_summary": build_patient_summary(parsed, knowledge, safety),
+        "patient_summary": patient_summary,
         "questions_for_doctor": build_questions(parsed, safety),
         "confidence": estimate_confidence(text, medicines),
         "ui_labels": UI_LABELS[language],
@@ -384,7 +391,7 @@ def build_lab_result(name: str, value: float, config: dict) -> dict:
     else:
         status = "normal"
     return {
-        "name": name.upper() if len(name) <= 4 else name.title(),
+        "name": format_lab_name(name),
         "value": value,
         "unit": config["unit"],
         "reference_range": f"{low:g}-{high:g} {config['unit']}",
@@ -395,6 +402,12 @@ def build_lab_result(name: str, value: float, config: dict) -> dict:
 
 def normalize_reference_profile(reference_profile: str) -> str:
     return reference_profile if reference_profile in REFERENCE_PROFILES else "generic"
+
+
+def format_lab_name(name: str) -> str:
+    if name in {"hba1c", "wbc", "ldl", "hdl", "tsh", "alt", "ast"}:
+        return name.upper()
+    return name.title()
 
 
 def apply_reference_profile(name: str, config: dict, reference_profile: str) -> dict:

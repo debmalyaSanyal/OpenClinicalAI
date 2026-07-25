@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 
 DOSE_PATTERN = re.compile(r"\b(\d+(?:\.\d+)?\s?(?:mg|mcg|g|ml|iu|units?|tab|tabs?|cap|caps?))\b", re.I)
+LOOSE_DOSE_PATTERN = re.compile(r"\b(\d+(?:\.\d+)?\s?(?:k)?)\b", re.I)
 TABLE_DOSE_PATTERN = re.compile(r"\b(\d+(?:\.\d+)?)\b")
 DURATION_PATTERN = re.compile(r"\b(?:x|for)\s*(\d+\s*(?:day(?:s|\(s\))?|week(?:s|\(s\))?|month(?:s|\(s\))?))\b", re.I)
 FREQUENCY_DETAILS = {
@@ -60,6 +61,14 @@ FREQUENCY_DETAILS = {
         "frequency": "after food",
         "explanation": "PC means after food.",
     },
+    "once monthly": {
+        "frequency": "once monthly",
+        "explanation": "Once monthly means one dose in a month.",
+    },
+    "monthly": {
+        "frequency": "once monthly",
+        "explanation": "Monthly means one dose in a month.",
+    },
 }
 KNOWN_MEDICINES = {
     "amoxicillin",
@@ -97,6 +106,12 @@ NON_MEDICINE_TOKENS = {
     "rx",
     "send",
     "signature",
+    "previous",
+    "current",
+    "report",
+    "generalities",
+    "history",
+    "home",
 }
 
 
@@ -115,7 +130,7 @@ def parse_prescription_text(text: str) -> dict:
     lines = [clean_line(line) for line in text.splitlines()]
     lines = [line for line in lines if line]
     lines = merge_instruction_continuations(lines)
-    medicines = [medicine for line in lines if (medicine := parse_medicine_line(line))]
+    medicines = dedupe_medicines([medicine for line in lines if (medicine := parse_medicine_line(line))])
     symptoms = extract_symptoms(text)
     warnings = []
     if not medicines:
@@ -140,6 +155,8 @@ def clean_line(line: str) -> str:
 
 
 def parse_medicine_line(line: str) -> ParsedMedicine | None:
+    if is_noise_line(line):
+        return None
     normalized = line.lower()
     if table_medicine := parse_table_medicine_line(line):
         return table_medicine
@@ -149,11 +166,12 @@ def parse_medicine_line(line: str) -> ParsedMedicine | None:
     if not name:
         return None
     dose_match = DOSE_PATTERN.search(line)
+    loose_dose_match = LOOSE_DOSE_PATTERN.search(line)
     duration_match = DURATION_PATTERN.search(line)
     frequency = extract_frequency(normalized)
     return ParsedMedicine(
         name=name,
-        dose=dose_match.group(1) if dose_match else None,
+        dose=dose_match.group(1).strip() if dose_match else loose_dose_match.group(1).strip() if loose_dose_match else None,
         frequency=frequency["frequency"] if frequency else None,
         frequency_abbreviation=frequency["abbreviation"] if frequency else None,
         frequency_explanation=frequency["explanation"] if frequency else None,
@@ -170,6 +188,15 @@ def looks_like_medicine_line(line: str) -> bool:
     return bool(re.search(r"\b(tab|tablet|cap|capsule|syr|syrup|inj|injection|rx)\b", line, re.I))
 
 
+def is_noise_line(line: str) -> bool:
+    cleaned = re.sub(r"[^A-Za-z0-9]+", "", line)
+    if len(cleaned) < 3:
+        return True
+    if re.fullmatch(r"[il1|]+", line.strip(), re.I):
+        return True
+    return False
+
+
 def parse_table_medicine_line(line: str) -> ParsedMedicine | None:
     cleaned = re.sub(r"^\d+\s+", "", line.strip())
     if re.match(r"^(rx|tab|tablet|cap|capsule|syr|syrup|inj|injection)\s*[:.\-]?\s+", cleaned, re.I):
@@ -184,10 +211,10 @@ def parse_table_medicine_line(line: str) -> ParsedMedicine | None:
     if not left:
         return None
     dose = None
-    dose_match = list(DOSE_PATTERN.finditer(left)) or list(TABLE_DOSE_PATTERN.finditer(left))
+    dose_match = list(DOSE_PATTERN.finditer(left)) or list(LOOSE_DOSE_PATTERN.finditer(left)) or list(TABLE_DOSE_PATTERN.finditer(left))
     if dose_match:
         last_dose = dose_match[-1]
-        dose = last_dose.group(1)
+        dose = last_dose.group(1).strip()
         name = left[: last_dose.start()].strip(" :-")
     else:
         name = left
@@ -209,7 +236,8 @@ def parse_table_medicine_line(line: str) -> ParsedMedicine | None:
 def normalize_table_medicine_name(name: str) -> str | None:
     name = re.sub(r"\b(plus|tablet|tab|cap|capsule)\b", "", name, flags=re.I)
     name = re.sub(r"\s+", " ", name).strip(" :-")
-    if not name or name.lower() in NON_MEDICINE_TOKENS:
+    cleaned = re.sub(r"[^A-Za-z0-9]+", "", name)
+    if not name or name.lower() in NON_MEDICINE_TOKENS or len(cleaned) < 3:
         return None
     return " ".join(part.upper() if part.lower() in {"cr", "od"} else part.title() for part in name.split())
 
@@ -284,3 +312,15 @@ def extract_symptoms(text: str) -> list[str]:
         if match:
             found.append(match.group(1).strip())
     return found
+
+
+def dedupe_medicines(medicines: list[ParsedMedicine]) -> list[ParsedMedicine]:
+    seen: set[str] = set()
+    unique = []
+    for medicine in medicines:
+        key = medicine.name.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(medicine)
+    return unique

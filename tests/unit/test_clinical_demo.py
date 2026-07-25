@@ -92,6 +92,19 @@ class TestClinicalDemo(unittest.TestCase):
         self.assertEqual(result["reference_profile"], "India-oriented adult demo ranges")
         self.assertEqual(result["lab_tests"][0]["status"], "normal")
 
+    def test_prescription_mode_surfaces_embedded_report_values(self) -> None:
+        result = analyze_prescription_text(
+            """
+            Pregabid CR 82.5 a ah I
+            8 Lumia 60K once monthly
+            hba1c-8.083
+            hb-8.4
+            """
+        )
+        self.assertEqual([medicine["name"] for medicine in result["parsed_prescription"]["medicines"]], ["Pregabid", "Lumia"])
+        self.assertEqual([value["name"] for value in result["clinical_values"]], ["Hemoglobin", "HBA1C"])
+        self.assertIn("HBA1C 8.083 %", result["patient_summary"])
+
 
 if __name__ == "__main__":
     unittest.main()

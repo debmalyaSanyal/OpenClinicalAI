@@ -602,6 +602,9 @@ Creatinine 1.0 mg/dL`;
                       const preparedImage = await prepareImageForOcr(imageSource);
                       statusLine.textContent = "Reading image OCR. This may take a little while.";
                       const output = await Tesseract.recognize(preparedImage, "eng", {
+                        tessedit_pageseg_mode: "6",
+                        preserve_interword_spaces: "1",
+                        user_defined_dpi: "300",
                         logger: (event) => {
                           if (event.status === "recognizing text") {
                             const progress = Math.round((event.progress || 0) * 100);
@@ -707,6 +710,21 @@ Creatinine 1.0 mg/dL`;
                           <p><strong>${escapeHtml(labels.timing_explanation || "Timing meaning")}:</strong> ${escapeHtml(medicine.frequency_explanation || "Not detected")}</p>
                           <p><strong>${escapeHtml(labels.use || "Use")}:</strong> ${escapeHtml(info.use || "No explanation available.")}</p>
                           <p><strong>${escapeHtml(labels.caution || "Caution")}:</strong> ${escapeHtml(info.caution || "Verify with a clinician.")}</p>
+                        `;
+                        medicines.appendChild(item);
+                      });
+                    }
+                    const clinicalValues = data.clinical_values || [];
+                    if (clinicalValues.length) {
+                      clinicalValues.forEach((value) => {
+                        const item = document.createElement("div");
+                        item.className = "panel medicine";
+                        item.innerHTML = `
+                          <h3>${escapeHtml(value.name)}</h3>
+                          <p><strong>Value:</strong> ${escapeHtml(value.value)} ${escapeHtml(value.unit)}</p>
+                          <p><strong>Range:</strong> ${escapeHtml(value.reference_range)}</p>
+                          <p><strong>Status:</strong> ${escapeHtml(value.status)}</p>
+                          <p><strong>Meaning:</strong> ${escapeHtml(value.explanation)}</p>
                         `;
                         medicines.appendChild(item);
                       });

@@ -74,6 +74,22 @@ class TestPrescriptionParser(unittest.TestCase):
         self.assertEqual(result["medicines"][0]["frequency"], "once daily")
         self.assertGreaterEqual(len(result["medicines"]), 8)
 
+    def test_ignores_noise_and_keeps_monthly_strength(self) -> None:
+        result = parse_prescription_text(
+            """
+            Pregabid CR 82.5 a ah I ! }
+            8 Lumia 60K once monthly
+            I
+            |
+            L
+            """
+        )
+        names = [medicine["name"] for medicine in result["medicines"]]
+        self.assertEqual(names, ["Pregabid", "Lumia"])
+        self.assertEqual(result["medicines"][0]["dose"], "82.5")
+        self.assertEqual(result["medicines"][1]["dose"], "60K")
+        self.assertEqual(result["medicines"][1]["frequency"], "once monthly")
+
 
 if __name__ == "__main__":
     unittest.main()
