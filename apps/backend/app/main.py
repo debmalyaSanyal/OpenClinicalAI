@@ -93,12 +93,25 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     gap: 14px;
                     max-width: 680px;
                   }
-                  input[type="file"] {
+                  input[type="file"],
+                  textarea {
                     width: 100%;
                     padding: 14px;
                     border: 1px solid #b8c7c1;
                     border-radius: 8px;
                     background: #ffffff;
+                    box-sizing: border-box;
+                  }
+                  textarea {
+                    min-height: 150px;
+                    resize: vertical;
+                    font: inherit;
+                    line-height: 1.5;
+                  }
+                  .actions {
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 12px;
                   }
                   button {
                     width: fit-content;
@@ -111,6 +124,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     font: inherit;
                     font-weight: 700;
                     cursor: pointer;
+                  }
+                  button.secondary {
+                    border: 1px solid #b8c7c1;
+                    background: #ffffff;
+                    color: #113d34;
+                  }
+                  .preview {
+                    max-width: 320px;
+                    border-radius: 8px;
+                    border: 1px solid #d8e0dd;
+                    display: none;
                   }
                   pre {
                     max-width: 100%;
@@ -129,8 +153,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 <main>
                   <h1>OpenClinicalAI</h1>
                   <p>
-                    The API is live. You can upload a prescription below to confirm the hosted
-                    app is receiving files, then connect a hosted OCR model for real extraction.
+                    The app is live. Upload a clear printed prescription image for lightweight
+                    OCR, or try the built-in sample to see the parsed output format.
                   </p>
                   <nav aria-label="OpenClinicalAI links">
                     <a class="primary" href="/docs">Open API Docs</a>
@@ -138,39 +162,88 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     <a href="/redoc">Open ReDoc</a>
                   </nav>
                   <section>
-                    <h2>Try Prescription Upload</h2>
-                    <p>Select a prescription image or PDF. The current hosted demo verifies upload handling.</p>
+                    <h2>Try Prescription OCR</h2>
+                    <p>Select a clear prescription image, then review or edit the OCR text before parsing.</p>
                     <form id="upload-form">
-                      <input id="prescription-file" name="file" type="file" accept="image/*,.pdf" required />
-                      <button type="submit">Upload Prescription</button>
+                      <input id="prescription-file" name="file" type="file" accept="image/*" />
+                      <img id="preview" class="preview" alt="Prescription preview" />
+                      <textarea id="ocr-text" placeholder="OCR text will appear here. You can also paste prescription text manually."></textarea>
+                      <div class="actions">
+                        <button type="button" id="read-image">Read Image</button>
+                        <button type="submit">Parse Prescription</button>
+                        <button type="button" class="secondary" id="sample">Try Sample</button>
+                      </div>
                     </form>
                     <pre id="result" hidden></pre>
                   </section>
                 </main>
+                <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
                 <script>
                   const form = document.querySelector("#upload-form");
                   const fileInput = document.querySelector("#prescription-file");
+                  const readImage = document.querySelector("#read-image");
+                  const sample = document.querySelector("#sample");
+                  const textArea = document.querySelector("#ocr-text");
+                  const preview = document.querySelector("#preview");
                   const result = document.querySelector("#result");
+
+                  const sampleText = `Diagnosis: fever with throat infection
+Tab Paracetamol 500mg 1-0-1 x 3 days
+Cap Amoxicillin 500mg BD x 5 days
+Tab Cetirizine 10mg HS x 5 days`;
+
+                  fileInput.addEventListener("change", () => {
+                    const file = fileInput.files[0];
+                    if (!file) return;
+                    preview.src = URL.createObjectURL(file);
+                    preview.style.display = "block";
+                  });
+
+                  sample.addEventListener("click", async () => {
+                    textArea.value = sampleText;
+                    await parseText();
+                  });
+
+                  readImage.addEventListener("click", async () => {
+                    const file = fileInput.files[0];
+                    result.hidden = false;
+                    if (!file) {
+                      result.textContent = "Please choose a prescription image first.";
+                      return;
+                    }
+
+                    result.textContent = "Reading image OCR... this can take a little while.";
+
+                    try {
+                      const output = await Tesseract.recognize(file, "eng");
+                      textArea.value = output.data.text.trim();
+                      result.textContent = "OCR complete. Check the text, then parse the prescription.";
+                    } catch (error) {
+                      result.textContent = "OCR failed in the browser. Try the sample or paste text manually.";
+                    }
+                  });
 
                   form.addEventListener("submit", async (event) => {
                     event.preventDefault();
-                    result.hidden = false;
-                    result.textContent = "Uploading...";
+                    await parseText();
+                  });
 
-                    const body = new FormData();
-                    body.append("file", fileInput.files[0]);
+                  async function parseText() {
+                    result.hidden = false;
+                    result.textContent = "Parsing prescription...";
 
                     try {
-                      const response = await fetch("/v1/prescription/upload", {
+                      const response = await fetch("/v1/prescription/parse-text", {
                         method: "POST",
-                        body,
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ text: textArea.value }),
                       });
                       const data = await response.json();
                       result.textContent = JSON.stringify(data, null, 2);
                     } catch (error) {
-                      result.textContent = "Upload failed. Please try again.";
+                      result.textContent = "Parsing failed. Please try again.";
                     }
-                  });
+                  }
                 </script>
               </body>
             </html>
