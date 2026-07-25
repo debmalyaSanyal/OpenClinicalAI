@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+import re
 
 from core.prescription_parser import parse_prescription_text
 
@@ -68,6 +69,24 @@ RED_FLAGS = {
     "unconscious": "Unconsciousness is an emergency.",
     "seizure": "Seizure symptoms need prompt medical attention.",
     "severe allergy": "Severe allergy symptoms can become an emergency.",
+}
+
+
+LAB_TESTS = {
+    "hemoglobin": {"aliases": ["hemoglobin", "haemoglobin", "hb"], "unit": "g/dL", "low": 12.0, "high": 17.5},
+    "wbc": {"aliases": ["wbc", "white blood cells", "total leukocyte count", "tlc"], "unit": "10^3/uL", "low": 4.0, "high": 11.0},
+    "platelets": {"aliases": ["platelet", "platelets"], "unit": "10^3/uL", "low": 150.0, "high": 450.0},
+    "glucose": {"aliases": ["glucose", "blood sugar", "fbs", "fasting glucose"], "unit": "mg/dL", "low": 70.0, "high": 126.0},
+    "hba1c": {"aliases": ["hba1c", "hb a1c"], "unit": "%", "low": 4.0, "high": 5.7},
+    "creatinine": {"aliases": ["creatinine"], "unit": "mg/dL", "low": 0.6, "high": 1.3},
+    "urea": {"aliases": ["urea", "blood urea"], "unit": "mg/dL", "low": 7.0, "high": 20.0},
+    "cholesterol": {"aliases": ["total cholesterol", "cholesterol"], "unit": "mg/dL", "low": 0.0, "high": 200.0},
+    "ldl": {"aliases": ["ldl"], "unit": "mg/dL", "low": 0.0, "high": 100.0},
+    "hdl": {"aliases": ["hdl"], "unit": "mg/dL", "low": 40.0, "high": 999.0, "higher_is_better": True},
+    "triglycerides": {"aliases": ["triglycerides", "tg"], "unit": "mg/dL", "low": 0.0, "high": 150.0},
+    "tsh": {"aliases": ["tsh"], "unit": "uIU/mL", "low": 0.4, "high": 4.0},
+    "alt": {"aliases": ["alt", "sgpt"], "unit": "U/L", "low": 0.0, "high": 45.0},
+    "ast": {"aliases": ["ast", "sgot"], "unit": "U/L", "low": 0.0, "high": 40.0},
 }
 
 
@@ -226,6 +245,58 @@ def analyze_prescription_text(text: str, language: str = "en") -> dict:
     return localize_result(result, language)
 
 
+def analyze_lab_report_text(text: str, language: str = "en") -> dict:
+    language = normalize_language(language)
+    tests = extract_lab_tests(text)
+    abnormal = [test for test in tests if test["status"] in {"low", "high"}]
+    summary = build_lab_summary(tests, abnormal)
+    return {
+        "status": "complete",
+        "document_type": "lab_report",
+        "language": language,
+        "ocr_text": text.strip(),
+        "lab_tests": tests,
+        "patient_summary": summary,
+        "safety_review": build_lab_safety_review(abnormal),
+        "questions_for_doctor": build_lab_questions(abnormal),
+        "confidence": {
+            "level": "medium" if len(tests) >= 2 else "limited" if tests else "low",
+            "reason": "Lab values were extracted from readable report text." if tests else "No known lab values were detected.",
+        },
+        "ui_labels": UI_LABELS[language],
+    }
+
+
+def answer_lab_report_question(text: str, question: str, language: str = "en") -> dict:
+    analysis = analyze_lab_report_text(text, language)
+    lowered = question.lower()
+    tests = analysis["lab_tests"]
+    abnormal = [test for test in tests if test["status"] in {"low", "high"}]
+    if not text.strip():
+        answer = "Please analyze or paste a blood report first."
+    elif any(word in lowered for word in ("high", "low", "abnormal", "problem", "bad", "danger", "risk")):
+        answer = build_lab_abnormal_answer(abnormal)
+    elif any(word in lowered for word in ("value", "level", "result", "how much", "reading")):
+        answer = build_lab_values_answer(tests)
+    elif any(word in lowered for word in ("mean", "meaning", "explain", "what is")):
+        answer = build_lab_meaning_answer(tests)
+    else:
+        answer = analysis["patient_summary"]
+    return {
+        "status": "complete",
+        "language": analysis["language"],
+        "question": question,
+        "answer": answer,
+        "safety_note": "",
+    }
+
+
+def answer_document_question(text: str, question: str, document_type: str = "prescription", language: str = "en") -> dict:
+    if document_type == "lab_report":
+        return answer_lab_report_question(text, question, language)
+    return answer_prescription_question(text, question, language)
+
+
 def answer_prescription_question(text: str, question: str, language: str = "en") -> dict:
     analysis = analyze_prescription_text(text, language)
     lowered = question.lower()
@@ -254,6 +325,108 @@ def answer_prescription_question(text: str, question: str, language: str = "en")
         "answer": localize_chat_answer(answer, analysis["language"]),
         "safety_note": analysis["safety_review"]["safe_use_note"] if include_safety_note else "",
     }
+
+
+def extract_lab_tests(text: str) -> list[dict]:
+    normalized = text.replace("|", " ")
+    found: list[dict] = []
+    seen: set[str] = set()
+    for name, config in LAB_TESTS.items():
+        for alias in config["aliases"]:
+            pattern = rf"\b{re.escape(alias)}\b\s*[:\-]?\s*(\d+(?:\.\d+)?)"
+            match = re.search(pattern, normalized, re.I)
+            if match and name not in seen:
+                value = float(match.group(1))
+                found.append(build_lab_result(name, value, config))
+                seen.add(name)
+                break
+    return found
+
+
+def build_lab_result(name: str, value: float, config: dict) -> dict:
+    low = config["low"]
+    high = config["high"]
+    if config.get("higher_is_better"):
+        status = "low" if value < low else "normal"
+    elif value < low:
+        status = "low"
+    elif value > high:
+        status = "high"
+    else:
+        status = "normal"
+    return {
+        "name": name.upper() if len(name) <= 4 else name.title(),
+        "value": value,
+        "unit": config["unit"],
+        "reference_range": f"{low:g}-{high:g} {config['unit']}",
+        "status": status,
+        "explanation": lab_explanation(name, status),
+    }
+
+
+def lab_explanation(name: str, status: str) -> str:
+    if status == "normal":
+        return "Within the built-in demo reference range."
+    if name in {"hemoglobin", "wbc", "platelets"}:
+        return "CBC value is outside the built-in demo range. Review with a clinician."
+    if name in {"glucose", "hba1c"}:
+        return "Blood sugar marker is outside the built-in demo range. Review diabetes risk/control."
+    if name in {"creatinine", "urea"}:
+        return "Kidney marker is outside the built-in demo range. Review hydration, kidney function, and medicines."
+    if name in {"alt", "ast"}:
+        return "Liver enzyme is outside the built-in demo range. Review with a clinician."
+    return "Value is outside the built-in demo reference range."
+
+
+def build_lab_summary(tests: list[dict], abnormal: list[dict]) -> str:
+    if not tests:
+        return "No known blood report values were detected. Paste clearer report text or upload a sharper image."
+    summary = f"Detected {len(tests)} lab value(s)."
+    if abnormal:
+        names = ", ".join(f"{test['name']} {test['status']}" for test in abnormal)
+        summary += f" Values needing review: {names}."
+    else:
+        summary += " No values were outside the built-in demo ranges."
+    return summary
+
+
+def build_lab_safety_review(abnormal: list[dict]) -> dict:
+    flags = []
+    for test in abnormal:
+        flags.append({"type": "lab_range", "message": f"{test['name']} is {test['status']} at {test['value']:g} {test['unit']}."})
+    return {
+        "risk_level": "review_needed" if flags else "routine",
+        "flags": flags,
+        "safe_use_note": "Lab reports must be interpreted with symptoms, age, sex, medical history, and clinician advice.",
+    }
+
+
+def build_lab_questions(abnormal: list[dict]) -> list[str]:
+    questions = [
+        "Do these values match my age, sex, symptoms, and medical history?",
+        "Do I need a repeat test or follow-up test?",
+    ]
+    if abnormal:
+        questions.insert(0, "Which abnormal values need medical follow-up?")
+    return questions
+
+
+def build_lab_abnormal_answer(abnormal: list[dict]) -> str:
+    if not abnormal:
+        return "No abnormal values were detected by the built-in demo ranges."
+    return " ".join(f"{test['name']}: {test['value']:g} {test['unit']} is {test['status']}." for test in abnormal)
+
+
+def build_lab_values_answer(tests: list[dict]) -> str:
+    if not tests:
+        return "No lab values were detected yet."
+    return " ".join(f"{test['name']}: {test['value']:g} {test['unit']} ({test['status']})." for test in tests)
+
+
+def build_lab_meaning_answer(tests: list[dict]) -> str:
+    if not tests:
+        return "No known lab test was detected to explain."
+    return " ".join(f"{test['name']}: {test['explanation']}" for test in tests)
 
 
 def lookup_medicine(name: str) -> dict:

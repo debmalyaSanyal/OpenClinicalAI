@@ -2,7 +2,12 @@ from __future__ import annotations
 
 import unittest
 
-from core.clinical_demo import analyze_prescription_text, answer_prescription_question
+from core.clinical_demo import (
+    analyze_lab_report_text,
+    analyze_prescription_text,
+    answer_document_question,
+    answer_prescription_question,
+)
 
 
 class TestClinicalDemo(unittest.TestCase):
@@ -46,6 +51,30 @@ class TestClinicalDemo(unittest.TestCase):
         )
         self.assertEqual(result["answer"], "Dexamethasone: 4 mg for 3 days.")
         self.assertEqual(result["safety_note"], "")
+
+    def test_analyzes_blood_report_values(self) -> None:
+        result = analyze_lab_report_text(
+            """
+            Hemoglobin 11.2 g/dL
+            WBC 12.5 10^3/uL
+            Platelets 240 10^3/uL
+            Fasting Glucose 142 mg/dL
+            Creatinine 1.0 mg/dL
+            """
+        )
+        self.assertEqual(result["document_type"], "lab_report")
+        self.assertEqual(len(result["lab_tests"]), 5)
+        self.assertEqual(result["lab_tests"][0]["status"], "low")
+        self.assertEqual(result["lab_tests"][1]["status"], "high")
+
+    def test_chatbot_answers_lab_report_questions(self) -> None:
+        result = answer_document_question(
+            "Hemoglobin 11.2 g/dL\nWBC 12.5 10^3/uL",
+            "which values are abnormal?",
+            "lab_report",
+        )
+        self.assertIn("Hemoglobin: 11.2 g/dL is low", result["answer"])
+        self.assertIn("WBC: 12.5 10^3/uL is high", result["answer"])
 
 
 if __name__ == "__main__":

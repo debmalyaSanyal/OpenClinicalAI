@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from core.clinical_demo import analyze_prescription_text, answer_prescription_question
+from core.clinical_demo import analyze_prescription_text, answer_document_question
 
 router = APIRouter()
 
@@ -17,8 +17,9 @@ def reason(payload: dict) -> dict:
 
 @router.post("/chat")
 def chat(payload: dict) -> dict:
-    return answer_prescription_question(
+    return answer_document_question(
         str(payload.get("text", "")),
         str(payload.get("question", "")),
+        str(payload.get("document_type", "prescription")),
         str(payload.get("language", "en")),
     )

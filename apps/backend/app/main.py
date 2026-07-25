@@ -265,9 +265,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 <main>
                   <div class="workspace">
                     <section>
-                      <h2>Prescription Input</h2>
-                      <p>Upload a clear printed image or paste typed prescription text.</p>
+                      <h2>Document Input</h2>
+                      <p>Upload a prescription or blood report image, or paste typed text.</p>
                       <input id="prescription-file" name="file" type="file" accept="image/*" capture="environment" />
+                      <label>
+                        Document Type
+                        <select id="document-type">
+                          <option value="prescription">Prescription</option>
+                          <option value="lab_report">Blood Report</option>
+                        </select>
+                      </label>
                       <label>
                         Output Language
                         <select id="language">
@@ -291,7 +298,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                       <h2>OCR Text</h2>
                       <textarea id="ocr-text" placeholder="OCR text will appear here. You can edit it before analysis."></textarea>
                       <div class="actions">
-                        <button type="button" id="analyze">Analyze Prescription</button>
+                        <button type="button" id="analyze">Analyze Document</button>
                         <button type="button" class="secondary" id="clear">Clear</button>
                       </div>
                     </section>
@@ -302,7 +309,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                       <div id="summary" class="panel">Run an analysis to see the patient summary.</div>
                     </section>
                     <section>
-                      <h2>Medicines</h2>
+                      <h2 id="details-heading">Medicines</h2>
                       <div id="medicines" class="grid"></div>
                     </section>
                     <section>
@@ -314,10 +321,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                       <div id="questions" class="panel">No questions yet.</div>
                     </section>
                     <section>
-                      <h2>Prescription Chatbot</h2>
-                      <p>Ask about the parsed prescription, medicine use, dose, timing short forms, or safety notes.</p>
+                      <h2>Clinical Chatbot</h2>
+                      <p>Ask about medicine timing/dose or blood report values and abnormal results.</p>
                       <div id="chat-log" class="chat-log panel">
-                        <div class="message assistant">Analyze a prescription, then ask a question here.</div>
+                        <div class="message assistant">Analyze a document, then ask a question here.</div>
                       </div>
                       <div class="actions">
                         <input id="chat-question" type="text" placeholder="Example: What does BD mean?" />
@@ -340,6 +347,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                   const analyze = document.querySelector("#analyze");
                   const clear = document.querySelector("#clear");
                   const textArea = document.querySelector("#ocr-text");
+                  const documentType = document.querySelector("#document-type");
                   const languageSelect = document.querySelector("#language");
                   const preview = document.querySelector("#preview");
                   const camera = document.querySelector("#camera");
@@ -348,6 +356,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                   const medicines = document.querySelector("#medicines");
                   const safety = document.querySelector("#safety");
                   const questions = document.querySelector("#questions");
+                  const detailsHeading = document.querySelector("#details-heading");
                   const raw = document.querySelector("#raw");
                   const chatLog = document.querySelector("#chat-log");
                   const chatQuestion = document.querySelector("#chat-question");
@@ -360,6 +369,12 @@ Tab Paracetamol 500mg OD x 3 days
 Cap Amoxicillin 500mg BD x 5 days
 Tab Cetirizine 10mg HS x 5 days
 Syrup Pantoprazole 40mg AC x 5 days`;
+                  const sampleReportText = `Complete Blood Count
+Hemoglobin 11.2 g/dL
+WBC 12.5 10^3/uL
+Platelets 240 10^3/uL
+Fasting Glucose 142 mg/dL
+Creatinine 1.0 mg/dL`;
 
                   fileInput.addEventListener("change", () => {
                     const file = fileInput.files[0];
@@ -436,7 +451,7 @@ Syrup Pantoprazole 40mg AC x 5 days`;
                   });
 
                   sample.addEventListener("click", async () => {
-                    textArea.value = sampleText;
+                    textArea.value = documentType.value === "lab_report" ? sampleReportText : sampleText;
                     await runAnalysis();
                   });
 
@@ -462,7 +477,7 @@ Syrup Pantoprazole 40mg AC x 5 days`;
                     safety.textContent = "No safety review yet.";
                     questions.textContent = "No questions yet.";
                     raw.textContent = "No result yet.";
-                    chatLog.innerHTML = `<div class="message assistant">Analyze a prescription, then ask a question here.</div>`;
+                    chatLog.innerHTML = `<div class="message assistant">Analyze a document, then ask a question here.</div>`;
                     chatQuestion.value = "";
                   });
 
@@ -474,7 +489,8 @@ Syrup Pantoprazole 40mg AC x 5 days`;
                     }
                     statusLine.textContent = "Analyzing prescription...";
                     try {
-                      const response = await fetch("/v1/prescription/analyze", {
+                      const endpoint = documentType.value === "lab_report" ? "/v1/reports" : "/v1/prescription/analyze";
+                      const response = await fetch(endpoint, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({ text, language: languageSelect.value }),
@@ -494,6 +510,11 @@ Syrup Pantoprazole 40mg AC x 5 days`;
                       <p>${escapeHtml(data.patient_summary || "No summary available.")}</p>
                       <span class="badge">${escapeHtml(labels.confidence || "Confidence")}: ${escapeHtml(data.confidence?.level || "unknown")}</span>
                     `;
+                    if (data.document_type === "lab_report") {
+                      renderLabReport(data, labels);
+                      return;
+                    }
+                    detailsHeading.textContent = "Medicines";
                     medicines.innerHTML = "";
                     const detected = data.parsed_prescription?.medicines || [];
                     const knowledge = data.medicine_knowledge || [];
@@ -530,6 +551,37 @@ Syrup Pantoprazole 40mg AC x 5 days`;
                       : escapeHtml(labels.no_questions || "No questions generated.");
                   }
 
+                  function renderLabReport(data, labels) {
+                    detailsHeading.textContent = "Lab Values";
+                    medicines.innerHTML = "";
+                    const tests = data.lab_tests || [];
+                    if (!tests.length) {
+                      medicines.innerHTML = `<div class="panel">No known blood report values were detected.</div>`;
+                    } else {
+                      tests.forEach((test) => {
+                        const item = document.createElement("div");
+                        item.className = "panel medicine";
+                        item.innerHTML = `
+                          <h3>${escapeHtml(test.name)}</h3>
+                          <p><strong>Value:</strong> ${escapeHtml(test.value)} ${escapeHtml(test.unit)}</p>
+                          <p><strong>Range:</strong> ${escapeHtml(test.reference_range)}</p>
+                          <p><strong>Status:</strong> ${escapeHtml(test.status)}</p>
+                          <p><strong>Meaning:</strong> ${escapeHtml(test.explanation)}</p>
+                        `;
+                        medicines.appendChild(item);
+                      });
+                    }
+
+                    const flags = data.safety_review?.flags || [];
+                    safety.innerHTML = flags.length
+                      ? `<span class="badge">Review needed</span><ul>${flags.map((flag) => `<li>${escapeHtml(flag.message)}</li>`).join("")}</ul>`
+                      : `<p>No abnormal values were detected by the built-in demo ranges.</p><span class="badge">Risk: ${escapeHtml(data.safety_review?.risk_level || "routine")}</span>`;
+                    const prompts = data.questions_for_doctor || [];
+                    questions.innerHTML = prompts.length
+                      ? `<ul>${prompts.map((question) => `<li>${escapeHtml(question)}</li>`).join("")}</ul>`
+                      : "No questions generated.";
+                  }
+
                   async function askChatbot() {
                     const question = chatQuestion.value.trim();
                     const text = textArea.value.trim();
@@ -551,6 +603,7 @@ Syrup Pantoprazole 40mg AC x 5 days`;
                         body: JSON.stringify({
                           text,
                           question,
+                          document_type: documentType.value,
                           language: languageSelect.value,
                         }),
                       });
