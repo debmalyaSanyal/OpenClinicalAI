@@ -29,14 +29,31 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 <title>OpenClinicalAI</title>
                 <style>
                   :root {
-                    color-scheme: light;
+                    color-scheme: dark;
                     font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-                    color: #17211f;
-                    background: #f5f7f6;
+                    color: #eafff6;
+                    background: #020504;
                   }
                   body {
                     margin: 0;
                     min-height: 100vh;
+                    background:
+                      linear-gradient(135deg, rgba(0, 255, 136, 0.08), transparent 34%),
+                      repeating-linear-gradient(0deg, rgba(91, 255, 177, 0.035) 0 1px, transparent 1px 9px),
+                      #020504;
+                    overflow-x: hidden;
+                  }
+                  body::before {
+                    content: "";
+                    position: fixed;
+                    inset: 0;
+                    pointer-events: none;
+                    background: linear-gradient(90deg, transparent, rgba(119, 255, 190, 0.06), transparent);
+                    animation: sweep 7s linear infinite;
+                  }
+                  @keyframes sweep {
+                    0% { transform: translateX(-100%); }
+                    100% { transform: translateX(100%); }
                   }
                   header,
                   main {
@@ -44,7 +61,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     margin: 0 auto;
                   }
                   header {
-                    padding: 34px 0 22px;
+                    padding: 34px 0 24px;
                     display: flex;
                     align-items: center;
                     justify-content: space-between;
@@ -55,13 +72,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     font-size: clamp(2rem, 5vw, 4.4rem);
                     line-height: 1;
                     letter-spacing: 0;
+                    color: #9cffcb;
+                    text-shadow: 0 0 18px rgba(26, 255, 140, 0.42);
                   }
                   .subtitle {
                     max-width: 760px;
                     margin: 12px 0 0;
                     font-size: 1.05rem;
                     line-height: 1.6;
-                    color: #42514d;
+                    color: #a8c8bb;
                   }
                   nav {
                     display: flex;
@@ -73,12 +92,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     align-items: center;
                     min-height: 40px;
                     padding: 0 14px;
-                    border: 1px solid #b8c7c1;
+                    border: 1px solid rgba(103, 255, 177, 0.42);
                     border-radius: 8px;
-                    color: #113d34;
-                    background: #ffffff;
+                    color: #9cffcb;
+                    background: rgba(7, 25, 19, 0.82);
+                    box-shadow: 0 0 18px rgba(0, 255, 136, 0.12);
                     text-decoration: none;
                     font-weight: 650;
+                    transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+                  }
+                  a:hover {
+                    border-color: #66ffad;
+                    box-shadow: 0 0 26px rgba(0, 255, 136, 0.3);
+                    transform: translateY(-1px);
                   }
                   main {
                     display: grid;
@@ -87,10 +113,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     padding-bottom: 48px;
                   }
                   section {
-                    background: #ffffff;
-                    border: 1px solid #d8e0dd;
+                    position: relative;
+                    background: rgba(5, 16, 13, 0.88);
+                    border: 1px solid rgba(105, 255, 183, 0.22);
                     border-radius: 8px;
                     padding: 20px;
+                    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.36), inset 0 1px 0 rgba(161, 255, 207, 0.08);
+                    backdrop-filter: blur(14px);
+                  }
+                  section::before {
+                    content: "";
+                    position: absolute;
+                    inset: 0;
+                    border-radius: 8px;
+                    pointer-events: none;
+                    background: linear-gradient(120deg, rgba(70, 255, 164, 0.12), transparent 35%);
                   }
                   h2,
                   h3 {
@@ -99,13 +136,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                   }
                   h2 {
                     font-size: 1.25rem;
+                    color: #caffdf;
+                    text-shadow: 0 0 14px rgba(47, 255, 151, 0.24);
                   }
                   h3 {
                     font-size: 1rem;
+                    color: #9cffcb;
                   }
                   p {
                     margin: 0 0 16px;
-                    color: #42514d;
+                    color: #a8c8bb;
                     line-height: 1.55;
                   }
                   .workspace,
@@ -120,10 +160,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                   textarea {
                     width: 100%;
                     padding: 13px;
-                    border: 1px solid #b8c7c1;
+                    border: 1px solid rgba(111, 255, 185, 0.28);
                     border-radius: 8px;
-                    background: #ffffff;
+                    background: rgba(0, 10, 7, 0.82);
+                    color: #eafff6;
                     box-sizing: border-box;
+                    outline: none;
+                    transition: border-color 160ms ease, box-shadow 160ms ease;
+                  }
+                  input[type="file"]:focus,
+                  input[type="text"]:focus,
+                  select:focus,
+                  textarea:focus {
+                    border-color: #68ffb4;
+                    box-shadow: 0 0 0 3px rgba(0, 255, 136, 0.13), 0 0 24px rgba(0, 255, 136, 0.12);
                   }
                   textarea {
                     min-height: 220px;
@@ -135,7 +185,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     display: grid;
                     gap: 8px;
                     margin: 14px 0 0;
-                    color: #31413c;
+                    color: #cdfde4;
                     font-weight: 700;
                   }
                   .actions {
@@ -147,27 +197,36 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                   button {
                     min-height: 42px;
                     padding: 0 15px;
-                    border: 0;
+                    border: 1px solid rgba(118, 255, 191, 0.68);
                     border-radius: 8px;
-                    background: #145c4f;
-                    color: #ffffff;
+                    background: linear-gradient(180deg, #43ff9b, #0ac86a);
+                    color: #02110b;
                     font: inherit;
                     font-weight: 700;
                     cursor: pointer;
+                    box-shadow: 0 0 22px rgba(39, 255, 146, 0.28);
+                    transition: transform 140ms ease, box-shadow 140ms ease, filter 140ms ease;
+                  }
+                  button:hover {
+                    transform: translateY(-1px);
+                    filter: brightness(1.08);
+                    box-shadow: 0 0 34px rgba(39, 255, 146, 0.42);
                   }
                   button.secondary {
-                    border: 1px solid #b8c7c1;
-                    background: #ffffff;
-                    color: #113d34;
+                    border: 1px solid rgba(101, 255, 178, 0.38);
+                    background: rgba(3, 24, 16, 0.85);
+                    color: #baffd8;
+                    box-shadow: inset 0 0 18px rgba(0, 255, 136, 0.08);
                   }
                   .preview {
                     width: 100%;
                     max-height: 260px;
                     object-fit: contain;
                     border-radius: 8px;
-                    border: 1px solid #d8e0dd;
+                    border: 1px solid rgba(105, 255, 183, 0.28);
                     display: none;
-                    background: #f5f7f6;
+                    background: #07110f;
+                    box-shadow: 0 0 24px rgba(0, 255, 136, 0.12);
                   }
                   .camera-modal {
                     position: fixed;
@@ -175,7 +234,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     z-index: 20;
                     display: none;
                     grid-template-rows: 1fr auto;
-                    background: #07110f;
+                    background: #010806;
                   }
                   .camera-modal.open {
                     display: grid;
@@ -198,10 +257,24 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     position: absolute;
                     width: min(88vw, 720px);
                     aspect-ratio: 0.7;
-                    border: 3px solid #f6f8f7;
+                    border: 3px solid #5cffad;
                     border-radius: 8px;
-                    box-shadow: 0 0 0 999px rgba(0, 0, 0, 0.24);
+                    box-shadow: 0 0 0 999px rgba(0, 0, 0, 0.34), 0 0 38px rgba(54, 255, 153, 0.6);
                     pointer-events: none;
+                  }
+                  .scan-guide::after {
+                    content: "";
+                    position: absolute;
+                    left: 0;
+                    right: 0;
+                    height: 3px;
+                    background: #7dffc1;
+                    box-shadow: 0 0 20px rgba(93, 255, 177, 0.8);
+                    animation: scanline 2.6s ease-in-out infinite;
+                  }
+                  @keyframes scanline {
+                    0%, 100% { top: 8%; }
+                    50% { top: 88%; }
                   }
                   .camera-controls {
                     display: flex;
@@ -209,24 +282,25 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     justify-content: center;
                     gap: 12px;
                     padding: 16px;
-                    background: #07110f;
+                    background: #010806;
                   }
                   .camera-hint {
                     width: 100%;
                     margin: 0;
-                    color: #f6f8f7;
+                    color: #c6ffdc;
                     text-align: center;
                   }
                   .status {
                     min-height: 22px;
-                    color: #42514d;
+                    color: #8effbf;
                     font-size: 0.95rem;
                   }
                   .panel {
-                    border: 1px solid #d8e0dd;
+                    border: 1px solid rgba(105, 255, 183, 0.22);
                     border-radius: 8px;
                     padding: 16px;
-                    background: #fbfcfb;
+                    background: rgba(1, 12, 8, 0.74);
+                    color: #dfffee;
                   }
                   .chat-log {
                     display: grid;
@@ -240,11 +314,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     line-height: 1.45;
                   }
                   .message.user {
-                    background: #e7f1ed;
+                    background: rgba(60, 255, 161, 0.14);
+                    border: 1px solid rgba(103, 255, 177, 0.2);
                   }
                   .message.assistant {
-                    background: #fbfcfb;
-                    border: 1px solid #d8e0dd;
+                    background: rgba(1, 12, 8, 0.74);
+                    border: 1px solid rgba(105, 255, 183, 0.24);
                   }
                   .grid {
                     display: grid;
@@ -252,7 +327,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     gap: 12px;
                   }
                   .medicine {
-                    border-left: 4px solid #145c4f;
+                    border-left: 4px solid #42ff9b;
+                    box-shadow: inset 0 0 24px rgba(0, 255, 136, 0.06);
                   }
                   .badge {
                     display: inline-flex;
@@ -260,15 +336,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     min-height: 28px;
                     padding: 0 10px;
                     border-radius: 999px;
-                    background: #e7f1ed;
-                    color: #113d34;
+                    background: rgba(63, 255, 162, 0.16);
+                    color: #aaffcf;
+                    border: 1px solid rgba(103, 255, 177, 0.24);
                     font-weight: 700;
                     font-size: 0.86rem;
                   }
                   ul {
                     margin: 8px 0 0;
                     padding-left: 20px;
-                    color: #31413c;
+                    color: #d7ffe9;
                     line-height: 1.55;
                   }
                   pre {
@@ -277,8 +354,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     margin: 0;
                     padding: 14px;
                     border-radius: 8px;
-                    background: #17211f;
-                    color: #f6f8f7;
+                    background: #000806;
+                    color: #90ffbd;
+                    border: 1px solid rgba(105, 255, 183, 0.22);
                     line-height: 1.5;
                     white-space: pre-wrap;
                   }
