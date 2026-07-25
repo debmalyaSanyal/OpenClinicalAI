@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, File, UploadFile
 
+from core.clinical_demo import analyze_prescription_text
 from core.prescription_parser import parse_prescription_text
 
 router = APIRouter()
@@ -18,6 +19,11 @@ def parse_prescription(payload: dict) -> dict:
 @router.post("/parse-text")
 def parse_text(payload: dict) -> dict:
     return parse_prescription_text(str(payload.get("text", "")))
+
+
+@router.post("/analyze")
+def analyze(payload: dict) -> dict:
+    return analyze_prescription_text(str(payload.get("text", "")))
 
 
 @router.post("/upload")

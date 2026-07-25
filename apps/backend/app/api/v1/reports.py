@@ -2,9 +2,17 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
+from core.clinical_demo import analyze_prescription_text
+
 router = APIRouter()
 
 
 @router.post("")
 def analyze_report(payload: dict) -> dict:
-    return {"status": "accepted", "message": "Report analyzer plugins can be registered here.", "input_keys": sorted(payload.keys())}
+    analysis = analyze_prescription_text(str(payload.get("text", "")))
+    return {
+        "status": "complete",
+        "report_type": "prescription_summary",
+        "summary": analysis["patient_summary"],
+        "safety_review": analysis["safety_review"],
+    }

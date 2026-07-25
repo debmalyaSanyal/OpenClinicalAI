@@ -32,41 +32,47 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     color-scheme: light;
                     font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
                     color: #17211f;
-                    background: #f6f8f7;
+                    background: #f5f7f6;
                   }
                   body {
                     margin: 0;
                     min-height: 100vh;
                   }
+                  header,
                   main {
-                    width: min(920px, calc(100vw - 40px));
+                    width: min(1180px, calc(100vw - 32px));
                     margin: 0 auto;
-                    padding: 56px 0;
+                  }
+                  header {
+                    padding: 34px 0 22px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    gap: 16px;
                   }
                   h1 {
-                    margin: 0 0 14px;
-                    font-size: clamp(2.2rem, 6vw, 4.8rem);
-                    line-height: 0.95;
+                    margin: 0;
+                    font-size: clamp(2rem, 5vw, 4.4rem);
+                    line-height: 1;
                     letter-spacing: 0;
                   }
-                  p {
-                    max-width: 680px;
-                    margin: 0 0 28px;
-                    font-size: 1.08rem;
-                    line-height: 1.65;
+                  .subtitle {
+                    max-width: 760px;
+                    margin: 12px 0 0;
+                    font-size: 1.05rem;
+                    line-height: 1.6;
                     color: #42514d;
                   }
                   nav {
                     display: flex;
                     flex-wrap: wrap;
-                    gap: 12px;
-                    margin-bottom: 34px;
+                    gap: 10px;
                   }
                   a {
                     display: inline-flex;
                     align-items: center;
-                    min-height: 44px;
-                    padding: 0 16px;
+                    min-height: 40px;
+                    padding: 0 14px;
                     border: 1px solid #b8c7c1;
                     border-radius: 8px;
                     color: #113d34;
@@ -74,36 +80,51 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     text-decoration: none;
                     font-weight: 650;
                   }
-                  a.primary {
-                    border-color: #145c4f;
-                    color: #ffffff;
-                    background: #145c4f;
+                  main {
+                    display: grid;
+                    grid-template-columns: minmax(300px, 430px) 1fr;
+                    gap: 22px;
+                    padding-bottom: 48px;
                   }
                   section {
-                    border-top: 1px solid #d8e0dd;
-                    padding-top: 30px;
+                    background: #ffffff;
+                    border: 1px solid #d8e0dd;
+                    border-radius: 8px;
+                    padding: 20px;
                   }
-                  h2 {
+                  h2,
+                  h3 {
                     margin: 0 0 10px;
-                    font-size: 1.3rem;
                     letter-spacing: 0;
                   }
-                  form {
+                  h2 {
+                    font-size: 1.25rem;
+                  }
+                  h3 {
+                    font-size: 1rem;
+                  }
+                  p {
+                    margin: 0 0 16px;
+                    color: #42514d;
+                    line-height: 1.55;
+                  }
+                  .workspace,
+                  .results {
                     display: grid;
-                    gap: 14px;
-                    max-width: 680px;
+                    gap: 16px;
+                    align-content: start;
                   }
                   input[type="file"],
                   textarea {
                     width: 100%;
-                    padding: 14px;
+                    padding: 13px;
                     border: 1px solid #b8c7c1;
                     border-radius: 8px;
                     background: #ffffff;
                     box-sizing: border-box;
                   }
                   textarea {
-                    min-height: 150px;
+                    min-height: 220px;
                     resize: vertical;
                     font: inherit;
                     line-height: 1.5;
@@ -111,12 +132,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                   .actions {
                     display: flex;
                     flex-wrap: wrap;
-                    gap: 12px;
+                    gap: 10px;
+                    margin-top: 12px;
                   }
                   button {
-                    width: fit-content;
-                    min-height: 44px;
-                    padding: 0 18px;
+                    min-height: 42px;
+                    padding: 0 15px;
                     border: 0;
                     border-radius: 8px;
                     background: #145c4f;
@@ -131,61 +152,148 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     color: #113d34;
                   }
                   .preview {
-                    max-width: 320px;
+                    width: 100%;
+                    max-height: 260px;
+                    object-fit: contain;
                     border-radius: 8px;
                     border: 1px solid #d8e0dd;
                     display: none;
+                    background: #f5f7f6;
+                  }
+                  .status {
+                    min-height: 22px;
+                    color: #42514d;
+                    font-size: 0.95rem;
+                  }
+                  .panel {
+                    border: 1px solid #d8e0dd;
+                    border-radius: 8px;
+                    padding: 16px;
+                    background: #fbfcfb;
+                  }
+                  .grid {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+                    gap: 12px;
+                  }
+                  .medicine {
+                    border-left: 4px solid #145c4f;
+                  }
+                  .badge {
+                    display: inline-flex;
+                    align-items: center;
+                    min-height: 28px;
+                    padding: 0 10px;
+                    border-radius: 999px;
+                    background: #e7f1ed;
+                    color: #113d34;
+                    font-weight: 700;
+                    font-size: 0.86rem;
+                  }
+                  ul {
+                    margin: 8px 0 0;
+                    padding-left: 20px;
+                    color: #31413c;
+                    line-height: 1.55;
                   }
                   pre {
                     max-width: 100%;
                     overflow: auto;
-                    margin-top: 18px;
-                    padding: 16px;
+                    margin: 0;
+                    padding: 14px;
                     border-radius: 8px;
                     background: #17211f;
                     color: #f6f8f7;
                     line-height: 1.5;
                     white-space: pre-wrap;
                   }
+                  @media (max-width: 860px) {
+                    header {
+                      display: block;
+                    }
+                    nav {
+                      margin-top: 18px;
+                    }
+                    main {
+                      grid-template-columns: 1fr;
+                    }
+                  }
                 </style>
               </head>
               <body>
-                <main>
-                  <h1>OpenClinicalAI</h1>
-                  <p>
-                    The app is live. Upload a clear printed prescription image for lightweight
-                    OCR, or try the built-in sample to see the parsed output format.
-                  </p>
+                <header>
+                  <div>
+                    <h1>OpenClinicalAI</h1>
+                    <p class="subtitle">
+                      Browser OCR plus lightweight clinical parsing, safety review, medicine knowledge,
+                      and patient-friendly output running on Vercel.
+                    </p>
+                  </div>
                   <nav aria-label="OpenClinicalAI links">
-                    <a class="primary" href="/docs">Open API Docs</a>
-                    <a href="/v1/health">Check Health</a>
-                    <a href="/redoc">Open ReDoc</a>
+                    <a href="/docs">API Docs</a>
+                    <a href="/v1/health">Health</a>
                   </nav>
-                  <section>
-                    <h2>Try Prescription OCR</h2>
-                    <p>Select a clear prescription image, then review or edit the OCR text before parsing.</p>
-                    <form id="upload-form">
+                </header>
+                <main>
+                  <div class="workspace">
+                    <section>
+                      <h2>Prescription Input</h2>
+                      <p>Upload a clear printed image or paste typed prescription text.</p>
                       <input id="prescription-file" name="file" type="file" accept="image/*" />
-                      <img id="preview" class="preview" alt="Prescription preview" />
-                      <textarea id="ocr-text" placeholder="OCR text will appear here. You can also paste prescription text manually."></textarea>
                       <div class="actions">
-                        <button type="button" id="read-image">Read Image</button>
-                        <button type="submit">Parse Prescription</button>
-                        <button type="button" class="secondary" id="sample">Try Sample</button>
+                        <button type="button" id="read-image">Read Image OCR</button>
+                        <button type="button" class="secondary" id="sample">Use Sample</button>
                       </div>
-                    </form>
-                    <pre id="result" hidden></pre>
-                  </section>
+                      <p class="status" id="status">Ready.</p>
+                      <img id="preview" class="preview" alt="Prescription preview" />
+                    </section>
+                    <section>
+                      <h2>OCR Text</h2>
+                      <textarea id="ocr-text" placeholder="OCR text will appear here. You can edit it before analysis."></textarea>
+                      <div class="actions">
+                        <button type="button" id="analyze">Analyze Prescription</button>
+                        <button type="button" class="secondary" id="clear">Clear</button>
+                      </div>
+                    </section>
+                  </div>
+                  <div class="results">
+                    <section>
+                      <h2>Clinical Output</h2>
+                      <div id="summary" class="panel">Run an analysis to see the patient summary.</div>
+                    </section>
+                    <section>
+                      <h2>Medicines</h2>
+                      <div id="medicines" class="grid"></div>
+                    </section>
+                    <section>
+                      <h2>Safety Review</h2>
+                      <div id="safety" class="panel">No safety review yet.</div>
+                    </section>
+                    <section>
+                      <h2>Questions For Doctor</h2>
+                      <div id="questions" class="panel">No questions yet.</div>
+                    </section>
+                    <section>
+                      <h2>Raw Result</h2>
+                      <pre id="raw">No result yet.</pre>
+                    </section>
+                  </div>
                 </main>
                 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
                 <script>
-                  const form = document.querySelector("#upload-form");
                   const fileInput = document.querySelector("#prescription-file");
                   const readImage = document.querySelector("#read-image");
                   const sample = document.querySelector("#sample");
+                  const analyze = document.querySelector("#analyze");
+                  const clear = document.querySelector("#clear");
                   const textArea = document.querySelector("#ocr-text");
                   const preview = document.querySelector("#preview");
-                  const result = document.querySelector("#result");
+                  const statusLine = document.querySelector("#status");
+                  const summary = document.querySelector("#summary");
+                  const medicines = document.querySelector("#medicines");
+                  const safety = document.querySelector("#safety");
+                  const questions = document.querySelector("#questions");
+                  const raw = document.querySelector("#raw");
 
                   const sampleText = `Diagnosis: fever with throat infection
 Tab Paracetamol 500mg 1-0-1 x 3 days
@@ -197,52 +305,113 @@ Tab Cetirizine 10mg HS x 5 days`;
                     if (!file) return;
                     preview.src = URL.createObjectURL(file);
                     preview.style.display = "block";
-                  });
-
-                  sample.addEventListener("click", async () => {
-                    textArea.value = sampleText;
-                    await parseText();
+                    statusLine.textContent = "Image selected. Run OCR when ready.";
                   });
 
                   readImage.addEventListener("click", async () => {
                     const file = fileInput.files[0];
-                    result.hidden = false;
                     if (!file) {
-                      result.textContent = "Please choose a prescription image first.";
+                      statusLine.textContent = "Please choose a prescription image first.";
                       return;
                     }
-
-                    result.textContent = "Reading image OCR... this can take a little while.";
-
+                    statusLine.textContent = "Reading image OCR. This may take a little while.";
                     try {
                       const output = await Tesseract.recognize(file, "eng");
                       textArea.value = output.data.text.trim();
-                      result.textContent = "OCR complete. Check the text, then parse the prescription.";
+                      statusLine.textContent = "OCR complete. Review the text, then analyze.";
                     } catch (error) {
-                      result.textContent = "OCR failed in the browser. Try the sample or paste text manually.";
+                      statusLine.textContent = "OCR failed. Paste typed prescription text or use the sample.";
                     }
                   });
 
-                  form.addEventListener("submit", async (event) => {
-                    event.preventDefault();
-                    await parseText();
+                  sample.addEventListener("click", async () => {
+                    textArea.value = sampleText;
+                    await runAnalysis();
                   });
 
-                  async function parseText() {
-                    result.hidden = false;
-                    result.textContent = "Parsing prescription...";
+                  analyze.addEventListener("click", runAnalysis);
 
+                  clear.addEventListener("click", () => {
+                    textArea.value = "";
+                    preview.removeAttribute("src");
+                    preview.style.display = "none";
+                    statusLine.textContent = "Ready.";
+                    summary.textContent = "Run an analysis to see the patient summary.";
+                    medicines.innerHTML = "";
+                    safety.textContent = "No safety review yet.";
+                    questions.textContent = "No questions yet.";
+                    raw.textContent = "No result yet.";
+                  });
+
+                  async function runAnalysis() {
+                    const text = textArea.value.trim();
+                    if (!text) {
+                      statusLine.textContent = "Add prescription text first.";
+                      return;
+                    }
+                    statusLine.textContent = "Analyzing prescription...";
                     try {
-                      const response = await fetch("/v1/prescription/parse-text", {
+                      const response = await fetch("/v1/prescription/analyze", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ text: textArea.value }),
+                        body: JSON.stringify({ text }),
                       });
                       const data = await response.json();
-                      result.textContent = JSON.stringify(data, null, 2);
+                      renderResult(data);
+                      statusLine.textContent = "Analysis complete.";
                     } catch (error) {
-                      result.textContent = "Parsing failed. Please try again.";
+                      statusLine.textContent = "Analysis failed. Please try again.";
                     }
+                  }
+
+                  function renderResult(data) {
+                    raw.textContent = JSON.stringify(data, null, 2);
+                    summary.innerHTML = `
+                      <p>${escapeHtml(data.patient_summary || "No summary available.")}</p>
+                      <span class="badge">Confidence: ${escapeHtml(data.confidence?.level || "unknown")}</span>
+                    `;
+                    medicines.innerHTML = "";
+                    const detected = data.parsed_prescription?.medicines || [];
+                    const knowledge = data.medicine_knowledge || [];
+                    if (!detected.length) {
+                      medicines.innerHTML = `<div class="panel">No medicines were confidently detected.</div>`;
+                    } else {
+                      detected.forEach((medicine, index) => {
+                        const info = knowledge[index] || {};
+                        const item = document.createElement("div");
+                        item.className = "panel medicine";
+                        item.innerHTML = `
+                          <h3>${escapeHtml(medicine.name || "Unknown medicine")}</h3>
+                          <p><strong>Dose:</strong> ${escapeHtml(medicine.dose || "Not detected")}</p>
+                          <p><strong>Frequency:</strong> ${escapeHtml(medicine.frequency || "Not detected")}</p>
+                          <p><strong>Duration:</strong> ${escapeHtml(medicine.duration || "Not detected")}</p>
+                          <p><strong>Use:</strong> ${escapeHtml(info.use || "No explanation available.")}</p>
+                          <p><strong>Caution:</strong> ${escapeHtml(info.caution || "Verify with a clinician.")}</p>
+                        `;
+                        medicines.appendChild(item);
+                      });
+                    }
+
+                    const flags = data.safety_review?.flags || [];
+                    if (!flags.length) {
+                      safety.innerHTML = `<p>No urgent demo safety flags detected.</p><span class="badge">Risk: ${escapeHtml(data.safety_review?.risk_level || "routine")}</span>`;
+                    } else {
+                      safety.innerHTML = `<span class="badge">Risk: ${escapeHtml(data.safety_review.risk_level)}</span><ul>${flags.map((flag) => `<li>${escapeHtml(flag.message)}</li>`).join("")}</ul>`;
+                    }
+
+                    const prompts = data.questions_for_doctor || [];
+                    questions.innerHTML = prompts.length
+                      ? `<ul>${prompts.map((question) => `<li>${escapeHtml(question)}</li>`).join("")}</ul>`
+                      : "No questions generated.";
+                  }
+
+                  function escapeHtml(value) {
+                    return String(value)
+                      .replaceAll("&", "&amp;")
+                      .replaceAll("<", "&lt;")
+                      .replaceAll(">", "&gt;")
+                      .replaceAll('"', "&quot;")
+                      .replaceAll("'", "&#039;");
                   }
                 </script>
               </body>
