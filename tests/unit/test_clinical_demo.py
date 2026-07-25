@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from unittest.mock import Mock, patch
 
 from core.clinical_demo import (
     analyze_lab_report_text,
@@ -123,6 +124,20 @@ class TestClinicalDemo(unittest.TestCase):
         self.assertIn("pain", uses["Pregabid CR"])
         self.assertIn("vitamin D3", uses["Lumia"])
         self.assertTrue(sources["Stamlo"].startswith("https://"))
+
+    def test_unknown_medicine_can_use_live_public_label_source(self) -> None:
+        response = Mock()
+        response.read.return_value = (
+            b'{"results":[{"indications_and_usage":["ExampleDrug is indicated for relief of example symptoms."],'
+            b'"openfda":{"generic_name":["examplegeneric"],"brand_name":["ExampleDrug"]}}]}'
+        )
+        response.__enter__ = Mock(return_value=response)
+        response.__exit__ = Mock(return_value=None)
+        with patch("core.clinical_demo.urlopen", return_value=response):
+            result = analyze_prescription_text("Tab ExampleDrug 10mg OD x 3 days")
+        info = result["medicine_knowledge"][0]
+        self.assertIn("Public FDA label data", info["use"])
+        self.assertEqual(info["source"], "openFDA drug label")
 
 
 if __name__ == "__main__":

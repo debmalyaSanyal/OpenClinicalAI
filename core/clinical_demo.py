@@ -1,7 +1,11 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from functools import lru_cache
+import json
 import re
+from urllib.parse import quote
+from urllib.request import Request, urlopen
 
 from core.prescription_parser import parse_prescription_text
 
@@ -597,6 +601,7 @@ def build_lab_diet_answer(question: str, tests: list[dict], abnormal: list[dict]
 def lookup_medicine(name: str, purpose: str | None = None) -> dict:
     key = name.lower()
     info = MEDICINE_KNOWLEDGE.get(key) or lookup_partial_medicine_key(key)
+    info = info or lookup_remote_medicine(name)
     purpose_note = purpose_explanation(purpose)
     if info:
         info = dict(info)
@@ -615,6 +620,79 @@ def lookup_partial_medicine_key(key: str) -> dict | None:
         if known_key in key or key in known_key:
             return info
     return None
+
+
+@lru_cache(maxsize=256)
+def lookup_remote_medicine(name: str) -> dict | None:
+    for candidate in medicine_lookup_candidates(name):
+        info = lookup_openfda_label(candidate)
+        if info:
+            return info
+    return None
+
+
+def medicine_lookup_candidates(name: str) -> tuple[str, ...]:
+    cleaned = re.sub(r"\b(?:cr|sr|er|xr|od|bd|tds|tablet|tab|capsule|cap)\b", " ", name, flags=re.I)
+    cleaned = re.sub(r"\b\d+(?:\.\d+)?\s*(?:mg|mcg|g|ml|iu|k)?\b", " ", cleaned, flags=re.I)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    candidates = [name.strip(), cleaned]
+    if cleaned:
+        candidates.append(cleaned.split()[0])
+    unique = []
+    for candidate in candidates:
+        candidate = candidate.strip(" -:")
+        if candidate and candidate.lower() not in {item.lower() for item in unique}:
+            unique.append(candidate)
+    return tuple(unique)
+
+
+def lookup_openfda_label(name: str) -> dict | None:
+    query = f'openfda.brand_name:"{name}" OR openfda.generic_name:"{name}"'
+    url = f"https://api.fda.gov/drug/label.json?search={quote(query)}&limit=1"
+    try:
+        request = Request(url, headers={"User-Agent": "OpenClinicalAI demo medicine lookup"})
+        with urlopen(request, timeout=3) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except Exception:
+        return None
+    results = payload.get("results") or []
+    if not results:
+        return None
+    label = results[0]
+    indication = first_label_text(label, "indications_and_usage") or first_label_text(label, "purpose")
+    if not indication:
+        return None
+    openfda = label.get("openfda") or {}
+    generic = first_list_value(openfda.get("generic_name"))
+    brand = first_list_value(openfda.get("brand_name"))
+    display = generic or brand or name
+    return {
+        "use": f"Public FDA label data for {display} says it is used for: {brief_label_text(indication)}",
+        "caution": "This is a live public-label lookup. Verify the exact brand/generic, dose, country-specific product, and patient suitability with a clinician or pharmacist.",
+        "source": "openFDA drug label",
+        "source_url": url,
+    }
+
+
+def first_label_text(label: dict, field: str) -> str:
+    values = label.get(field) or []
+    return first_list_value(values)
+
+
+def first_list_value(values: object) -> str:
+    if isinstance(values, list) and values:
+        return str(values[0]).strip()
+    if isinstance(values, str):
+        return values.strip()
+    return ""
+
+
+def brief_label_text(text: str) -> str:
+    text = re.sub(r"<[^>]+>", " ", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    sentences = re.split(r"(?<=[.!?])\s+", text)
+    brief = " ".join(sentences[:2]).strip()
+    return brief[:520].rstrip(" ,;:") + ("..." if len(brief) > 520 else "")
 
 
 def purpose_explanation(purpose: str | None) -> str:
