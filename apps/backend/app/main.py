@@ -267,7 +267,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     <section>
                       <h2>Document Input</h2>
                       <p>Upload a prescription or blood report image, or paste typed text.</p>
-                      <input id="prescription-file" name="file" type="file" accept="image/*" capture="environment" />
+                      <input id="prescription-file" name="file" type="file" accept="image/*,.svg" capture="environment" />
                       <label>
                         Document Type
                         <select id="document-type">
@@ -390,7 +390,9 @@ Creatinine 1.0 mg/dL`;
                     selectedImageBlob = file;
                     preview.src = URL.createObjectURL(file);
                     preview.style.display = "block";
-                    statusLine.textContent = "Image selected. Run OCR when ready.";
+                    statusLine.textContent = file.type === "image/svg+xml" || file.name.toLowerCase().endsWith(".svg")
+                      ? "SVG selected. It will be rendered to PNG before OCR."
+                      : "Image selected. Run OCR when ready.";
                   });
 
                   startCamera.addEventListener("click", async () => {
@@ -653,10 +655,12 @@ Creatinine 1.0 mg/dL`;
 
                   async function prepareImageForOcr(file) {
                     const image = await loadImage(file);
-                    const scale = Math.min(3, Math.max(1.5, 1800 / image.width));
+                    const sourceWidth = image.naturalWidth || image.width || 1200;
+                    const sourceHeight = image.naturalHeight || image.height || 900;
+                    const scale = Math.min(3, Math.max(1.5, 1800 / sourceWidth));
                     const canvas = document.createElement("canvas");
-                    canvas.width = Math.round(image.width * scale);
-                    canvas.height = Math.round(image.height * scale);
+                    canvas.width = Math.round(sourceWidth * scale);
+                    canvas.height = Math.round(sourceHeight * scale);
                     const context = canvas.getContext("2d", { willReadFrequently: true });
                     context.fillStyle = "#ffffff";
                     context.fillRect(0, 0, canvas.width, canvas.height);
@@ -686,10 +690,43 @@ Creatinine 1.0 mg/dL`;
                   function loadImage(file) {
                     return new Promise((resolve, reject) => {
                       const image = new Image();
-                      image.onload = () => resolve(image);
+                      image.onload = () => {
+                        URL.revokeObjectURL(image.src);
+                        resolve(image);
+                      };
                       image.onerror = reject;
-                      image.src = URL.createObjectURL(file);
+                      if (file.type === "image/svg+xml" || file.name?.toLowerCase().endsWith(".svg")) {
+                        file.text()
+                          .then((svgText) => buildSvgBlob(svgText))
+                          .then((svgBlob) => {
+                            image.src = URL.createObjectURL(svgBlob);
+                          })
+                          .catch(reject);
+                      } else {
+                        image.src = URL.createObjectURL(file);
+                      }
                     });
+                  }
+
+                  function buildSvgBlob(svgText) {
+                    const parser = new DOMParser();
+                    const documentSvg = parser.parseFromString(svgText, "image/svg+xml");
+                    const svg = documentSvg.querySelector("svg");
+                    if (!svg) {
+                      throw new Error("Invalid SVG file.");
+                    }
+                    svg.querySelectorAll("script").forEach((script) => script.remove());
+                    if (!svg.getAttribute("width")) {
+                      svg.setAttribute("width", "1200");
+                    }
+                    if (!svg.getAttribute("height")) {
+                      svg.setAttribute("height", "900");
+                    }
+                    if (!svg.getAttribute("viewBox")) {
+                      svg.setAttribute("viewBox", `0 0 ${svg.getAttribute("width")} ${svg.getAttribute("height")}`);
+                    }
+                    const serialized = new XMLSerializer().serializeToString(svg);
+                    return new Blob([serialized], { type: "image/svg+xml" });
                   }
 
                   function stopCamera() {
