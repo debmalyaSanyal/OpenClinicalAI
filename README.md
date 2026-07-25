@@ -30,6 +30,23 @@ http://localhost:8000/docs
 
 Project documentation can be published with GitHub Pages using the included `pages.yml` workflow.
 
+## Vercel Deployment
+
+This repository includes a Vercel entrypoint for the lightweight FastAPI API:
+
+```text
+api/index.py
+```
+
+After importing the GitHub repository in Vercel, keep the project root as the default root directory. Vercel will route requests to the FastAPI app, including:
+
+```text
+/docs
+/v1/health
+```
+
+Heavy OCR/model inference should run in a dedicated backend service or hosted model endpoint, then be called from this API.
+
 ## Local Development
 
 ```bash
