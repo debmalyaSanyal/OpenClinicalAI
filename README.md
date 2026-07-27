@@ -47,6 +47,23 @@ After importing the GitHub repository in Vercel, keep the project root as the de
 
 Heavy OCR/model inference should run in a dedicated backend service or hosted model endpoint, then be called from this API.
 
+## Railway Deployment
+
+This repository can also run as a long-lived Railway backend using:
+
+```text
+Procfile
+railway.json
+```
+
+Deploy from GitHub in Railway, keep the root directory as the repository root, and let Railway use the included start command:
+
+```bash
+uvicorn apps.backend.app.main:app --host 0.0.0.0 --port $PORT
+```
+
+The Railway public URL will serve the full app at `/` and API endpoints such as `/docs`, `/v1/prescription/analyze`, `/v1/reports`, and `/v1/reasoning/chat`.
+
 ## Local Development
 
 ```bash
